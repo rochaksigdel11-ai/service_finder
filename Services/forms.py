@@ -1,0 +1,43 @@
+from django import forms
+from .models import Overview, BasicPackage, StandardPackage, PremiumPackage, Description, Question, Gallery
+
+class OverviewForm(forms.ModelForm):
+    class Meta:
+        model = Overview
+        fields = ['titleOverview', 'category', 'search_tags']
+        widgets = {'search_tags': forms.TextInput(attrs={'placeholder': 'plumber, fast, cheap'})}
+
+class BasicPackageForm(forms.ModelForm):
+    class Meta:
+        model = BasicPackage
+        fields = ['Basic_title', 'Basic_description', 'Basic_delivery_time', 'Basic_revisions', 'Basic_source_file', 'Basic_price']
+
+class StandardPackageForm(forms.ModelForm):
+    class Meta:
+        model = StandardPackage
+        fields = ['Standard_title', 'Standard_description', 'Standard_delivery_time', 'Standard_revisions', 'Standard_source_file', 'Standard_price']
+
+class PremiumPackageForm(forms.ModelForm):
+    class Meta:
+        model = PremiumPackage
+        fields = ['Premium_title', 'Premium_description', 'Premium_delivery_time', 'Premium_revisions', 'Premium_source_file', 'Premium_price']
+
+class DescriptionForm(forms.ModelForm):
+    class Meta:
+        model = Description
+        fields = ['description']
+        widgets = {'description': forms.Textarea(attrs={'rows': 5})}
+
+class QuestionForm(forms.ModelForm):
+    class Meta:
+        model = Question
+        fields = ['question_text', 'question_type', 'text', 'choices', 'allow_multiple_selection']
+        widgets = {
+            'text': forms.Textarea(attrs={'rows': 2}),
+            'choices': forms.TextInput(attrs={'placeholder': 'Option1, Option2'}),
+        }
+
+class GalleryForm(forms.ModelForm):
+    class Meta:
+        model = Gallery
+        fields = ['image1', 'image2', 'image3', 'video']

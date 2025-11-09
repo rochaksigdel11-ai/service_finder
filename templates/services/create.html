@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+{% load django_bootstrap5 %}
+{% block title %}Create Service{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-plus-circle me-2"></i>Create New Service
+                    </h3>
+                </div>
+                <div class="card-body p-4">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <!-- Overview -->
+                        <div class="card mb-4 border">
+                            <div class="card-header bg-light">
+                                <h5 class="mb-0">Service Overview</h5>
+                            </div>
+                            <div class="card-body">
+                                {% bootstrap_form overview_form %}
+                            </div>
+                        </div>
+
+                        <!-- Packages -->
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card mb-4 border-success">
+                                    <div class="card-header bg-success text-white">
+                                        <h6 class="mb-0">Basic Package</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        {% bootstrap_form basic_form %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card mb-4 border-primary">
+                                    <div class="card-header bg-primary text-white">
+                                        <h6 class="mb-0">Standard Package</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        {% bootstrap_form standard_form %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card mb-4 border-warning">
+                                    <div class="card-header bg-warning text-dark">
+                                        <h6 class="mb-0">Premium Package</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        {% bootstrap_form premium_form %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="card mb-4 border">
+                            <div class="card-header bg-light">
+                                <h5 class="mb-0">Description</h5>
+                            </div>
+                            <div class="card-body">
+                                {% bootstrap_form description_form %}
+                            </div>
+                        </div>
+
+                        <!-- FAQ -->
+                        <div class="card mb-4 border">
+                            <div class="card-header bg-light">
+                                <h5 class="mb-0">FAQ (Questions)</h5>
+                            </div>
+                            <div class="card-body">
+                                {{ question_formset.management_form }}
+                                {% for form in question_formset %}
+                                <div class="border p-3 mb-3 rounded">
+                                    {% bootstrap_form form %}
+                                    {% if not forloop.first %}
+                                    <button type="button" class="btn btn-sm btn-danger remove-question">Remove</button>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="add-question">+ Add Question</button>
+                            </div>
+                        </div>
+
+                        <!-- Gallery -->
+                        <div class="card mb-4 border">
+                            <div class="card-header bg-light">
+                                <h5 class="mb-0">Gallery (Images & Video)</h5>
+                            </div>
+                            <div class="card-body">
+                                {% bootstrap_form gallery_form %}
+                            </div>
+                        </div>
+
+                        <!-- Submit -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'IntroHome' %}" class="btn btn-secondary me-md-2">Cancel</a>
+                            <button type="submit" class="btn btn-success btn-lg">Create Service</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('add-question').onclick = function() {
+    const formset = document.querySelectorAll('.border.p-3').length;
+    const form = document.querySelector('.border.p-3').cloneNode(true);
+    form.querySelectorAll('input, textarea, select').forEach(el => {
+        el.name = el.name.replace(/-\d+-/, `-${formset}-`);
+        el.id = el.id.replace(/-\d+-/, `-${formset}-`);
+        el.value = '';
+    });
+    form.querySelector('.remove-question').style.display = 'block';
+    document.querySelector('.card-body').insertBefore(form, this);
+    document.querySelector('#id_questions-TOTAL_FORMS').value = formset + 1;
+};
+document.addEventListener('click', e => {
+    if (e.target.classList.contains('remove-question')) {
+        e.target.parentElement.remove();
+        const total = document.querySelectorAll('.border.p-3').length;
+        document.querySelector('#id_questions-TOTAL_FORMS').value = total;
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>eSewa Payment - Service Finder</title>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial; text-align: center; margin-top: 50px; }
+        .card { max-width: 400px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px; }
+        input, button { width: 100%; padding: 10px; margin: 10px 0; }
+        .esewa-btn { background: #6c3; color: white; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2>Pay with eSewa</h2>
+    <p><strong>Service:</strong> {{ package_name|title }}</p>
+    <p><strong>Amount:</strong> Rs. {{ price }}</p>
+    <p><small>Service Fee: Rs. {{ service_fee }}</small></p>
+
+    <form action="https://uat.esewa.com.np/epay/main" method="POST">
+        <input type="hidden" name="tAmt" value="{{ total_amount }}">
+        <input type="hidden" name="amt" value="{{ actual_price }}">
+        <input type="hidden" name="txAmt" value="{{ service_fee }}">
+        <input type="hidden" name="psc" value="0">
+        <input type="hidden" name="pdc" value="0">
+        <input type="hidden" name="scd" value="{{ product_code }}">
+        <input type="hidden" name="pid" value="{{ transaction_uuid }}">
+        <input type="hidden" name="su" value="{{ success_url }}">
+        <input type="hidden" name="fu" value="{{ failure_url }}">
+        <input type="hidden" name="signature" value="{{ signed_field }}">
+        <button type="submit" class="esewa-btn">Pay with eSewa</button>
+    </form>
+</div>
+</body>
+</html>
