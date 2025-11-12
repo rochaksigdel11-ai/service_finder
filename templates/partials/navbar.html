@@ -1,0 +1,80 @@
+{% load static %}
+<nav class="fixed top-0 w-full bg-white/80 backdrop-blur-lg shadow-sm z-40 border-b border-gray-100">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+            <a href="{% url 'IntroHome' %}" class="flex items-center space-x-2 group">
+                <div class="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center transform group-hover:rotate-12 transition-transform">
+                    <i class="fas fa-tools text-white"></i>
+                </div>
+                <span class="font-bold text-xl bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                    ServiceFinder NP
+                </span>
+            </a>
+
+            <!-- Desktop Menu -->
+            <div class="hidden md:flex items-center space-x-8">
+                <form action="{% url 'search_services' %}" class="relative">
+                    <input type="text" name="q" placeholder="Find plumbers, tutors..." 
+                           class="w-80 pl-10 pr-4 py-2 rounded-full border border-gray-200 focus:border-primary focus:outline-none transition">
+                    <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                </form>
+
+                {% if user.is_authenticated %}
+                <div class="flex items-center space-x-4">
+                    <a href="{% url 'seller_dashboard' user.username %}" class="text-gray-700 hover:text-primary transition">
+                        <i class="fas fa-th-large"></i> Dashboard
+                    </a>
+                    <div class="relative group">
+                        <button class="flex items-center space-x-2">
+                            {% with profile=user.userprofile %}
+                            <img src="{% if profile.profile_image %}{{ profile.profile_image.url }}{% else %}{% static 'img/user.png' %}{% endif %}"
+                                 class="w-9 h-9 rounded-full ring-2 ring-primary/20">
+                            {% endwith %}
+                            <span class="font-medium">{{ user.get_short_name }}</span>
+                        </button>
+                        <div class="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                            <div class="p-2">
+                                <a href="{% url 'view_profile_public' user.username %}" class="block px-4 py-2.5 rounded-xl hover:bg-gray-50">Profile</a>
+                                <a href="{% url 'edit_profile' user.username %}" class="block px-4 py-2.5 rounded-xl hover:bg-gray-50">Edit</a>
+                                <a href="{% url 'logout' %}" class="block px-4 py-2.5 rounded-xl hover:bg-red-50 text-red-600">Logout</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="flex space-x-3">
+                    <a href="{% url 'login' %}" class="px-5 py-2 rounded-full border border-primary text-primary hover:bg-primary hover:text-white transition">Login</a>
+                    <a href="{% url 'register' %}" class="px-5 py-2 rounded-full bg-primary text-white hover:bg-secondary transition">Sign Up</a>
+                </div>
+                {% endif %}
+
+                <!-- Theme Toggle -->
+                <button onclick="toggleTheme()" class="p-2 rounded-full hover:bg-gray-100 transition">
+                    <i class="fas fa-moon text-gray-600"></i>
+                </button>
+            </div>
+
+            <!-- Mobile Menu Button -->
+            <button onclick="toggleMobileMenu()" class="md:hidden p-2">
+                <i class="fas fa-bars text-xl"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Mobile Menu -->
+    <div id="mobileMenu" class="hidden md:hidden bg-white border-t">
+        <div class="px-4 py-3 space-y-2">
+            <form action="{% url 'search_services' %}">
+                <input type="text" name="q" placeholder="Search services..." class="w-full px-4 py-2 rounded-full border">
+            </form>
+            {% if user.is_authenticated %}
+            <a href="{% url 'seller_dashboard' user.username %}" class="block py-2">Dashboard</a>
+            <a href="{% url 'logout' %}" class="block py-2 text-red-600">Logout</a>
+            {% else %}
+            <a href="{% url 'login' %}" class="block py-2">Login</a>
+            <a href="{% url 'register' %}" class="block py-2">Sign Up</a>
+            {% endif %}
+        </div>
+    </div>
+</nav>
+<div class="h-16"></div> <!-- Spacer -->

@@ -1,11 +1,16 @@
-asgiref==3.10.0
-channels==4.3.1
-channels_redis==4.3.0
-Django==5.2.8
-djangorestframework==3.16.1
-msgpack==1.1.2
-pillow==12.0.0
-psycopg2-binary==2.9.11
-redis==7.0.1
-sqlparse==0.5.3
-tzdata==2025.2
+Django==5.0.6
+djangorestframework==3.15.1
+psycopg2-binary==2.9.9  # For Postgres
+django-crispy-forms==2.3  # Forms
+django-bootstrap5==24.3  # UI
+djangorestframework-simplejwt==5.3.1  # JWT auth
+channels==4.1.0  # Real-time chat
+channels-redis==4.2.0  # Channel layer
+redis==5.0.1  # Redis for channels
+gdal==3.8.3  # GeoDjango (install via conda/osgeo4w on Windows)
+django-extensions==3.2.3  # Shell_plus
+pytest-django==4.8.0  # Testing
+selenium==4.24.0  # UI tests
+requests==2.32.3  # APIs
+django-widget-tweaks==1.4.12  # Forms
+django-ratings==0.4.0  # Reviews (from search)

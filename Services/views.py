@@ -1,84 +1,133 @@
+# Services/views.py
 from django.contrib.auth.models import User
-from django.contrib.auth.decorators import login_required  # ← ADD THIS LINE
-from .forms import (
-    OverviewForm, BasicPackageForm, StandardPackageForm, PremiumPackageForm,
-    DescriptionForm, QuestionForm, GalleryForm
-)
-from Home.models import UserProfile
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
-from .models import (
-    Overview, BasicPackage, StandardPackage, PremiumPackage,
-    Description, Question, Gallery, RatingService
-)
-from django.http import HttpResponseForbidden
-from django.forms import modelformset_factory  # ← Also make sure this is here
+from django.http import HttpResponseForbidden, JsonResponse
+from django.forms import modelformset_factory
+from django.utils import timezone
+from datetime import timedelta
+from .models import Overview, Package, Description, Question, Gallery, RatingService, Message
+from .forms import OverviewForm, PackageForm, DescriptionForm, QuestionForm, GalleryForm
+from Home.models import UserProfile
+from core.decorators import is_buyer, is_seller
+from django.contrib import messages
+from .models import Booking
+import requests
+from django.conf import settings
 
+# ────── Haversine Distance ──────
+from math import radians, sin, cos, sqrt, atan2
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    R = 6371
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+    return R * c
+
+# ────── SMS FUNCTION ──────
+def send_sms(phone, message):
+    if not getattr(settings, 'SPARROW_SMS_API_KEY', None):
+        return
+    url = 'https://api.sparrowsms.com/v2/sms/'
+    payload = {
+        'token': settings.SPARROW_SMS_API_KEY,
+        'from': 'SFA',
+        'to': f'98{phone}',
+        'text': message
+    }
+    try:
+        requests.post(url, data=payload, timeout=5)
+    except:
+        pass
+
+# ────── SEARCH SERVICES ──────
 @login_required
+@is_buyer
+def search_services(request):
+    user_lat = float(request.GET.get('lat', 27.7172))
+    user_lon = float(request.GET.get('lon', 85.3240))
+    radius_km = float(request.GET.get('radius', 10))
+    category = request.GET.get('category', '')
+
+    overviews = []
+    for overview in Overview.objects.filter(location_lat__isnull=False, location_lng__isnull=False):
+        distance = haversine_distance(user_lat, user_lon, overview.location_lat, overview.location_lng)
+        if distance <= radius_km:
+            overview.distance_km = round(distance, 2)
+            overviews.append(overview)
+
+    if category:
+        overviews = [o for o in overviews if o.category and o.category.name.lower() == category.lower()]
+
+    context = {
+        'overviews': overviews,
+        'user_location': (user_lat, user_lon),
+        'radius': radius_km,
+        'category': category,
+    }
+    return render(request, 'services/search_results.html', context)
+
+# ────── CREATE SERVICE ──────
+@login_required
+@is_seller
 def create_job_profile(request, identifier):
-    user = get_object_or_404(User, username=identifier)
     if request.user.username != identifier:
         return HttpResponseForbidden("Access Denied")
 
-    # Create formset dynamically
     QuestionFormSet = modelformset_factory(Question, form=QuestionForm, extra=1, can_delete=True)
 
     if request.method == 'POST':
         overview_form = OverviewForm(request.POST)
-        basic_form = BasicPackageForm(request.POST, prefix='basic')
-        standard_form = StandardPackageForm(request.POST, prefix='standard')
-        premium_form = PremiumPackageForm(request.POST, prefix='premium')
         description_form = DescriptionForm(request.POST)
-        question_formset = QuestionFormSet(request.POST, prefix='questions')
         gallery_form = GalleryForm(request.POST, request.FILES)
+        question_formset = QuestionFormSet(request.POST, prefix='questions')
+        basic_form = PackageForm(request.POST, prefix='basic', package_type='basic')
+        standard_form = PackageForm(request.POST, prefix='standard', package_type='standard')
+        premium_form = PackageForm(request.POST, prefix='premium', package_type='premium')
 
-        if (overview_form.is_valid() and basic_form.is_valid() and
-            standard_form.is_valid() and premium_form.is_valid() and
-            description_form.is_valid() and question_formset.is_valid() and
-            gallery_form.is_valid()):
-
+        if all([
+            overview_form.is_valid(), description_form.is_valid(), gallery_form.is_valid(),
+            question_formset.is_valid(), basic_form.is_valid(), standard_form.is_valid(), premium_form.is_valid()
+        ]):
             overview = overview_form.save(commit=False)
             overview.user = request.user
             overview.save()
 
-            # Save packages
-            for form, Model in [
-                (basic_form, BasicPackage),
-                (standard_form, StandardPackage),
-                (premium_form, PremiumPackage)
-            ]:
-                pkg = form.save(commit=False)
-                pkg.overview = overview
-                pkg.save()
+            for form, pkg_type in [(basic_form, 'basic'), (standard_form, 'standard'), (premium_form, 'premium')]:
+                if form.cleaned_data.get('title'):
+                    pkg = form.save(commit=False)
+                    pkg.overview = overview
+                    pkg.package_type = pkg_type
+                    pkg.save()
 
-            # Save description
             desc = description_form.save(commit=False)
             desc.overview = overview
             desc.save()
 
-            # Save gallery
             gallery = gallery_form.save(commit=False)
             gallery.overview = overview
             gallery.save()
 
-            # Save questions
             for q_form in question_formset:
                 if q_form.cleaned_data and not q_form.cleaned_data.get('DELETE', False):
-                    question = q_form.save(commit=False)
-                    question.overview = overview
-                    question.save()
+                    q = q_form.save(commit=False)
+                    q.overview = overview
+                    q.save()
 
             return redirect('view_service_profile', overview.id)
 
     else:
         overview_form = OverviewForm()
-        basic_form = BasicPackageForm(prefix='basic')
-        standard_form = StandardPackageForm(prefix='standard')
-        premium_form = PremiumPackageForm(prefix='premium')
         description_form = DescriptionForm()
-        question_formset = QuestionFormSet(queryset=Question.objects.none(), prefix='questions')
         gallery_form = GalleryForm()
+        question_formset = QuestionFormSet(queryset=Question.objects.none(), prefix='questions')
+        basic_form = PackageForm(prefix='basic', package_type='basic')
+        standard_form = PackageForm(prefix='standard', package_type='standard')
+        premium_form = PackageForm(prefix='premium', package_type='premium')
 
-    context = {
+    return render(request, 'services/create.html', {
         'overview_form': overview_form,
         'basic_form': basic_form,
         'standard_form': standard_form,
@@ -86,11 +135,11 @@ def create_job_profile(request, identifier):
         'description_form': description_form,
         'question_formset': question_formset,
         'gallery_form': gallery_form,
-    }
-    return render(request, 'services/create.html', context)
+    })
 
-
+# ────── EDIT SERVICE (ADD THIS FUNCTION) ──────
 @login_required
+@is_seller
 def edit_service(request, username, overview_id):
     overview = get_object_or_404(Overview, pk=overview_id, user=request.user)
     if request.user.username != username:
@@ -98,38 +147,39 @@ def edit_service(request, username, overview_id):
 
     QuestionFormSet = modelformset_factory(Question, form=QuestionForm, extra=1, can_delete=True)
 
-    # Get related objects safely
-    basic = BasicPackage.objects.filter(overview=overview).first()
-    standard = StandardPackage.objects.filter(overview=overview).first()
-    premium = PremiumPackage.objects.filter(overview=overview).first()
     description = Description.objects.filter(overview=overview).first()
     gallery = Gallery.objects.filter(overview=overview).first()
+    basic = Package.objects.filter(overview=overview, package_type='basic').first()
+    standard = Package.objects.filter(overview=overview, package_type='standard').first()
+    premium = Package.objects.filter(overview=overview, package_type='premium').first()
 
     if request.method == 'POST':
         overview_form = OverviewForm(request.POST, instance=overview)
-        basic_form = BasicPackageForm(request.POST, instance=basic, prefix='basic')
-        standard_form = StandardPackageForm(request.POST, instance=standard, prefix='standard')
-        premium_form = PremiumPackageForm(request.POST, instance=premium, prefix='premium')
         description_form = DescriptionForm(request.POST, instance=description)
-        question_formset = QuestionFormSet(request.POST, queryset=Question.objects.filter(overview=overview), prefix='questions')
         gallery_form = GalleryForm(request.POST, request.FILES, instance=gallery)
+        question_formset = QuestionFormSet(request.POST, queryset=Question.objects.filter(overview=overview), prefix='questions')
 
-        if all([overview_form.is_valid(), basic_form.is_valid(), standard_form.is_valid(),
-                premium_form.is_valid(), description_form.is_valid(), question_formset.is_valid(), gallery_form.is_valid()]):
-            
+        basic_form = PackageForm(request.POST, instance=basic, prefix='basic', package_type='basic')
+        standard_form = PackageForm(request.POST, instance=standard, prefix='standard', package_type='standard')
+        premium_form = PackageForm(request.POST, instance=premium, prefix='premium', package_type='premium')
+
+        if all([
+            overview_form.is_valid(), description_form.is_valid(), gallery_form.is_valid(),
+            question_formset.is_valid(), basic_form.is_valid(), standard_form.is_valid(), premium_form.is_valid()
+        ]):
             overview_form.save()
-            basic_form.save()
-            standard_form.save()
-            premium_form.save()
             description_form.save()
             gallery_form.save()
 
+            for form in [basic_form, standard_form, premium_form]:
+                if form.cleaned_data.get('title'):
+                    form.save()
+
             for q_form in question_formset:
                 if q_form.cleaned_data:
-                    if q_form.cleaned_data.get('DELETE'):
-                        if q_form.instance.pk:
-                            q_form.instance.delete()
-                    else:
+                    if q_form.cleaned_data.get('DELETE') and q_form.instance.pk:
+                        q_form.instance.delete()
+                    elif not q_form.cleaned_data.get('DELETE'):
                         q = q_form.save(commit=False)
                         q.overview = overview
                         q.save()
@@ -138,14 +188,14 @@ def edit_service(request, username, overview_id):
 
     else:
         overview_form = OverviewForm(instance=overview)
-        basic_form = BasicPackageForm(instance=basic, prefix='basic')
-        standard_form = StandardPackageForm(instance=standard, prefix='standard')
-        premium_form = PremiumPackageForm(instance=premium, prefix='premium')
         description_form = DescriptionForm(instance=description)
-        question_formset = QuestionFormSet(queryset=Question.objects.filter(overview=overview), prefix='questions')
         gallery_form = GalleryForm(instance=gallery)
+        question_formset = QuestionFormSet(queryset=Question.objects.filter(overview=overview), prefix='questions')
+        basic_form = PackageForm(instance=basic, prefix='basic', package_type='basic')
+        standard_form = PackageForm(instance=standard, prefix='standard', package_type='standard')
+        premium_form = PackageForm(instance=premium, prefix='premium', package_type='premium')
 
-    context = {
+    return render(request, 'services/edit.html', {
         'overview_form': overview_form,
         'basic_form': basic_form,
         'standard_form': standard_form,
@@ -154,11 +204,10 @@ def edit_service(request, username, overview_id):
         'question_formset': question_formset,
         'gallery_form': gallery_form,
         'overview': overview,
-    }
-    return render(request, 'services/edit.html', context)
-
-
+    })
+    
 @login_required
+@is_seller
 def delete_service(request, username, overview_id):
     overview = get_object_or_404(Overview, pk=overview_id, user=request.user)
     if request.user.username != username:
@@ -166,56 +215,126 @@ def delete_service(request, username, overview_id):
 
     if request.method == 'POST':
         overview.delete()
-        return redirect('IntroHome')  # Change to your home URL
+        messages.success(request, "Service deleted successfully!")
+        return redirect('seller_bookings')  # or 'IntroHome'
 
     return render(request, 'services/delete.html', {'overview': overview})
 
+    
+# ────── BOOK SERVICE ──────
+@login_required
+@is_buyer
+def book_service(request, overview_id):
+    overview = get_object_or_404(Overview, id=overview_id)
+    packages = Package.objects.filter(overview=overview)
+
+    if request.method == 'POST':
+        package_type = request.POST.get('package')
+        preferred_date = request.POST.get('date')
+        message = request.POST.get('message', '')
+
+        package = get_object_or_404(Package, overview=overview, package_type=package_type)
+
+        booking = Booking.objects.create(
+            buyer=request.user,
+            overview=overview,
+            package=package,
+            preferred_date=preferred_date,
+            message=message,
+            status='pending'
+        )
+
+        # SMS
+        buyer_phone = request.user.userprofile.phone
+        seller_phone = overview.user.userprofile.phone
+        if buyer_phone:
+            send_sms(buyer_phone, f"Booking sent for {overview.titleOverview}")
+        if seller_phone:
+            send_sms(seller_phone, f"New booking from {request.user.username}")
+
+        messages.success(request, "Booking request sent!")
+        return redirect('view_service_profile', overview.id)
+
+    context = {
+        'overview': overview,
+        'packages': packages,
+        'today': timezone.now().date().isoformat()
+    }
+    return render(request, 'services/book.html', context)
+
+# ────── CHAT ──────
+@login_required
+def chat_view(request, overview_id):
+    overview = get_object_or_404(Overview, id=overview_id)
+    other_user = overview.user if request.user != overview.user else Booking.objects.filter(overview=overview).first().buyer
+    messages = Message.objects.filter(overview=overview).order_by('timestamp')
+
+    if request.method == 'POST':
+        content = request.POST.get('content')
+        Message.objects.create(
+            sender=request.user,
+            receiver=other_user,
+            overview=overview,
+            content=content
+        )
+        return redirect('chat_view', overview_id)
+
+    return render(request, 'services/chat.html', {
+        'overview': overview,
+        'other_user': other_user,
+        'messages': messages
+    })
+
+# ────── VIEW SERVICE + RATINGS ──────
 def view_service_profile(request, overview_id):
     overview = get_object_or_404(Overview, pk=overview_id)
-    user_profile = UserProfile.objects.get(user=overview.user)
-    basic_packages = BasicPackage.objects.filter(overview=overview)
-    standard_packages = StandardPackage.objects.filter(overview=overview)
-    premium_packages = PremiumPackage.objects.filter(overview=overview)
+    user_profile = get_object_or_404(UserProfile, user=overview.user)
+
+    packages = Package.objects.filter(overview=overview)
+    basic = packages.filter(package_type='basic').first()
+    standard = packages.filter(package_type='standard').first()
+    premium = packages.filter(package_type='premium').first()
+
     description = Description.objects.filter(overview=overview).first()
     questions = Question.objects.filter(overview=overview)
     gallery = Gallery.objects.filter(overview=overview).first()
     ratings = RatingService.objects.filter(overview=overview)
-    reviewer_profile = UserProfile.objects.get(user=request.user)
 
-    # Update overall rating
     if ratings.exists():
-        total = sum(r.review_rating for r in ratings if r.review_rating)
-        overview.overall_rating = round(total / ratings.count(), 2)
-    else:
-        overview.overall_rating = 0
-    overview.save()
+        from django.db.models import Avg
+        avg = ratings.aggregate(avg=Avg('review_rating'))['avg']
+        overview.overall_rating = round(avg or 0, 2)
+        overview.save()
+
+    reviewer_profile = None
+    if request.user.is_authenticated:
+        reviewer_profile = UserProfile.objects.get(user=request.user)
 
     if request.method == 'POST' and request.user.is_authenticated:
         rating_value = request.POST.get('rating')
         title = request.POST.get('title')
         review_text = request.POST.get('review')
+        ip = request.META.get('REMOTE_ADDR', '')
 
-        existing = RatingService.objects.filter(overview=overview, reviewer=reviewer_profile).first()
-        if existing:
-            existing.review_rating = rating_value
-            existing.title = title
-            existing.review = review_text
-            existing.save()
-        else:
-            RatingService.objects.create(
-                overview=overview,
-                reviewer=reviewer_profile,
-                review_rating=rating_value,
-                title=title,
-                review=review_text
-            )
+        if not (0.5 <= float(rating_value) <= 5.0):
+            return JsonResponse({'error': 'Invalid rating.'}, status=400)
+
+        recent = RatingService.objects.filter(ip_address=ip, created_at__gte=timezone.now() - timedelta(hours=1)).count()
+        if recent > 3 or len(review_text) < 10:
+            return JsonResponse({'error': 'Review blocked.'}, status=400)
+
+        RatingService.objects.update_or_create(
+            overview=overview, reviewer=reviewer_profile,
+            defaults={'review_rating': rating_value, 'title': title, 'review': review_text, 'ip_address': ip}
+        )
+        return JsonResponse({'success': True})
 
     context = {
         'service': overview,
         'user_profile': user_profile,
-        'basic_packages': basic_packages,
-        'standard_packages': standard_packages,
-        'premium_packages': premium_packages,
+        'basic': basic,
+        'standard': standard,
+        'premium': premium,
         'description': description,
         'questions': questions,
         'gallery': gallery,
@@ -223,4 +342,23 @@ def view_service_profile(request, overview_id):
         'reviewer_profile': reviewer_profile,
         'review_count': ratings.count(),
     }
-    return render(request, 'services/view.html', context)
+    return render(request, 'services/view_service_profile.html', context)
+
+# ────── SELLER BOOKINGS ──────
+@login_required
+@is_seller
+def seller_bookings(request):
+    bookings = Booking.objects.filter(overview__user=request.user).select_related('buyer', 'overview', 'package')
+    return render(request, 'services/seller_bookings.html', {'bookings': bookings})
+
+# ────── UPDATE STATUS ──────
+@login_required
+@is_seller
+def update_booking_status(request, booking_id, status):
+    booking = get_object_or_404(Booking, id=booking_id, overview__user=request.user)
+    if status in ['confirmed', 'completed', 'cancelled']:
+        booking.status = status
+        booking.save()
+        messages.success(request, f"Booking {status}!")
+    return redirect('seller_bookings')
+

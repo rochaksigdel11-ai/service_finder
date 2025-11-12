@@ -2,6 +2,15 @@
 {% load django_bootstrap5 %}
 {% block title %}Create Service{% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    #map { height: 400px; width: 100%; border-radius: 8px; }
+    .map-container { position: relative; }
+    .location-info { margin-top: 10px; font-size: 0.9rem; color: #555; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container py-5">
     <div class="row justify-content-center">
@@ -9,7 +18,7 @@
             <div class="card shadow-lg border-0">
                 <div class="card-header bg-primary text-white">
                     <h3 class="mb-0">
-                        <i class="fas fa-plus-circle me-2"></i>Create New Service
+                        Create New Service
                     </h3>
                 </div>
                 <div class="card-body p-4">
@@ -23,6 +32,22 @@
                             </div>
                             <div class="card-body">
                                 {% bootstrap_form overview_form %}
+                                
+                                <!-- LOCATION MAP -->
+                                <div class="mt-4">
+                                    <label class="form-label fw-bold">
+                                        Service Location (Click on map)
+                                    </label>
+                                    <div class="map-container">
+                                        <div id="map"></div>
+                                        <div class="location-info" id="location-info">
+                                            Click on the map to set your service location.
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">
+                                        This helps customers find you within 10km using GPS.
+                                    </small>
+                                </div>
                             </div>
                         </div>
 
@@ -75,10 +100,10 @@
                             <div class="card-header bg-light">
                                 <h5 class="mb-0">FAQ (Questions)</h5>
                             </div>
-                            <div class="card-body">
+                            <div class="card-body" id="question-container">
                                 {{ question_formset.management_form }}
                                 {% for form in question_formset %}
-                                <div class="border p-3 mb-3 rounded">
+                                <div class="border p-3 mb-3 rounded question-form">
                                     {% bootstrap_form form %}
                                     {% if not forloop.first %}
                                     <button type="button" class="btn btn-sm btn-danger remove-question">Remove</button>
@@ -111,25 +136,85 @@
     </div>
 </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-document.getElementById('add-question').onclick = function() {
-    const formset = document.querySelectorAll('.border.p-3').length;
-    const form = document.querySelector('.border.p-3').cloneNode(true);
-    form.querySelectorAll('input, textarea, select').forEach(el => {
-        el.name = el.name.replace(/-\d+-/, `-${formset}-`);
-        el.id = el.id.replace(/-\d+-/, `-${formset}-`);
-        el.value = '';
+    document.addEventListener('DOMContentLoaded', function () {
+        // Initialize map centered on Kathmandu
+        const map = L.map('map').setView([27.7172, 85.3240], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        let marker;
+
+        // On map click
+        map.on('click', function (e) {
+            const lat = e.latlng.lat.toFixed(6);
+            const lng = e.latlng.lng.toFixed(6);
+
+            // Update hidden fields
+            document.getElementById('id_location_lat').value = lat;
+            document.getElementById('id_location_lng').value = lng;
+
+            // Update marker
+            if (marker) map.removeLayer(marker);
+            marker = L.marker(e.latlng).addTo(map)
+                .bindPopup(`Lat: ${lat}<br>Lng: ${lng}`)
+                .openPopup();
+
+            // Reverse geocoding
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                .then(r => r.json())
+                .then(data => {
+                    const address = data.display_name.split(', ').slice(0, 3).join(', ');
+                    document.getElementById('location-info').innerHTML = `
+                        <strong>Location Set:</strong> ${address}<br>
+                        <small>Lat: ${lat}, Lng: ${lng}</small>
+                    `;
+                })
+                .catch(() => {
+                    document.getElementById('location-info').innerHTML = `
+                        <strong>Location Set:</strong> Lat: ${lat}, Lng: ${lng}
+                    `;
+                });
+        });
+
+        // Add hidden fields if not exist
+        ['location_lat', 'location_lng'].forEach(field => {
+            if (!document.getElementById(`id_${field}`)) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.id = `id_${field}`;
+                input.name = field;
+                document.querySelector('form').appendChild(input);
+            }
+        });
     });
-    form.querySelector('.remove-question').style.display = 'block';
-    document.querySelector('.card-body').insertBefore(form, this);
-    document.querySelector('#id_questions-TOTAL_FORMS').value = formset + 1;
-};
-document.addEventListener('click', e => {
-    if (e.target.classList.contains('remove-question')) {
-        e.target.parentElement.remove();
-        const total = document.querySelectorAll('.border.p-3').length;
-        document.querySelector('#id_questions-TOTAL_FORMS').value = total;
-    }
-});
+
+    // FAQ Add/Remove
+    document.getElementById('add-question').addEventListener('click', function() {
+        const container = document.getElementById('question-container');
+        const forms = container.querySelectorAll('.question-form');
+        const totalForms = document.querySelector('#id_questions-TOTAL_FORMS');
+        const formCount = forms.length;
+
+        const newForm = forms[0].cloneNode(true);
+        newForm.querySelectorAll('input, textarea, select').forEach(el => {
+            if (el.name) el.name = el.name.replace(/-\d+-/, `-${formCount}-`);
+            if (el.id) el.id = el.id.replace(/-\d+-/, `-${formCount}-`);
+            el.value = '';
+        });
+        newForm.querySelector('.remove-question').style.display = 'inline-block';
+        container.insertBefore(newForm, this);
+        totalForms.value = formCount + 1;
+    });
+
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-question')) {
+            e.target.parentElement.remove();
+            const total = document.querySelectorAll('.question-form').length;
+            document.querySelector('#id_questions-TOTAL_FORMS').value = total;
+        }
+    });
 </script>
 {% endblock %}

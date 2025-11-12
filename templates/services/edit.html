@@ -15,8 +15,7 @@
                 <div class="card-body p-4">
                     <form method="post" enctype="multipart/form-data">
                         {% csrf_token %}
-                        <!-- Same structure as create.html, just pre-filled -->
-                        {% include 'services/_service_form.html' with edit=True %}
+                        {% include 'services/create.html' with edit=True %}
                     </form>
                 </div>
             </div>

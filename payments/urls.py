@@ -9,5 +9,8 @@ urlpatterns = [
 
     # Withdrawal
     path('withdrawal/<str:username>/', views.withdrawal, name='withdrawal'),
-    path('conform_withdrawal/<str:username>/', views.Conform_withdrawal, name='conform_withdrawal'),
+    path('conform_withdrawal/<str:username>/', views.conform_withdrawal, name='conform_withdrawal'),
+    path('save-payment-method/<str:username>/', views.save_payment_method, name='save_payment_method'),
+    path('refund/<str:username>/', views.refund, name='refund'),
+    path('list-all-orders/<str:username>/', views.list_all_the_order, name='list_all_the_order'),
 ]

@@ -1,0 +1,63 @@
+<!-- templates/services/book.html -->
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Book Service - {{ overview.titleOverview }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        Book Service
+                    </h4>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>{{ overview.titleOverview }}</h5>
+                            <p class="text-muted">by <strong>@{{ overview.user.username }}</strong></p>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            {% if overview.gallery.first.image1 %}
+                            <img src="{{ overview.gallery.first.image1.url }}" class="img-fluid rounded" style="max-height: 100px;" alt="">
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Package</label>
+                                <select name="package" class="form-select" required>
+                                    {% for pkg in packages %}
+                                    <option value="{{ pkg.package_type }}">
+                                        {{ pkg.get_package_type_display }} - Rs. {{ pkg.price }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Preferred Date</label>
+                                <input type="date" name="date" class="form-control" required min="{{ today }}">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Message to Seller</label>
+                                <textarea name="message" class="form-control" rows="3" placeholder="Describe your needs..."></textarea>
+                            </div>
+                            <div class="col-12 text-end">
+                                <button type="submit" class="btn btn-success btn-lg px-5">
+                                    Send Booking Request
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

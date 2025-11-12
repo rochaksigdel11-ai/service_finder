@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Confirm Logout{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-body p-5 text-center">
+                    <i class="fas fa-sign-out-alt fa-3x text-warning mb-4"></i>
+                    <h3>Are you sure you want to logout?</h3>
+                    <p class="text-muted">You will need to login again to access your account.</p>
+                    
+                    <form method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">
+                            Yes, Logout
+                        </button>
+                    </form>
+                    <a href="{% url 'IntroHome' %}" class="btn btn-secondary ms-2">
+                        Cancel
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

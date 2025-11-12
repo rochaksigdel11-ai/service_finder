@@ -17,6 +17,8 @@ Including another URLconf
 # YourProjectName/urls.py
 from django.contrib import admin
 from django.urls import path, include
+from django.contrib.auth import views as auth_views
+from Home import views as Home_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -27,5 +29,13 @@ urlpatterns = [
     path('dashboard/', include('UserDashboard.urls')),
     path('chat/', include('Chating.urls')),
     path('', include('Home.urls')),
+   
+    
+    path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
+    
+    # Your existing home
+    path('', Home_views.IntroHome, name='IntroHome'),
+    path('<str:identifier>/', Home_views.home, name='home'),
 ]
+
 

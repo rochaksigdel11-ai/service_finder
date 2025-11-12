@@ -1,0 +1,74 @@
+{% load static %}
+<footer class="bg-dark text-light py-12 border-t border-gray-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+
+            <!-- Brand -->
+            <div>
+                <a href="{% url 'IntroHome' %}" class="flex items-center space-x-2 mb-4">
+                    <img src="{% static 'img/logo.png' %}" alt="SFA" class="h-10 w-10">
+                    <span class="text-2xl font-bold">SFA</span>
+                </a>
+                <p class="text-sm text-gray-400">
+                    Nepal's trusted local service marketplace. Connect with verified freelancers in your city.
+                </p>
+                <div class="flex space-x-3 mt-4">
+                    <a href="#" class="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center hover:bg-primary transition">
+                        <i class="fab fa-facebook-f text-sm"></i>
+                    </a>
+                    <a href="#" class="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center hover:bg-primary transition">
+                        <i class="fab fa-twitter text-sm"></i>
+                    </a>
+                    <a href="#" class="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center hover:bg-primary transition">
+                        <i class="fab fa-instagram text-sm"></i>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Quick Links -->
+            <div>
+                <h3 class="font-semibold text-lg mb-4">Quick Links</h3>
+                <ul class="space-y-2 text-sm text-gray-400">
+                    <li><a href="{% url 'search_services' %}" class="hover:text-primary transition">Find Services</a></li>
+                    <li><a href="#" class="hover:text-primary transition">How It Works</a></li>
+                    <li><a href="#" class="hover:text-primary transition">Become a Seller</a></li>
+                    <li><a href="#" class="hover:text-primary transition">Safety Tips</a></li>
+                </ul>
+            </div>
+
+            <!-- Categories -->
+            <div>
+                <h3 class="font-semibold text-lg mb-4">Popular Categories</h3>
+                <ul class="space-y-2 text-sm text-gray-400">
+                    <li><a href="#" class="hover:text-primary transition">Web Development</a></li>
+                    <li><a href="#" class="hover:text-primary transition">Graphic Design</a></li>
+                    <li><a href="#" class="hover:text-primary transition">Digital Marketing</a></li>
+                    <li><a href="#" class="hover:text-primary transition">Writing & Translation</a></li>
+                </ul>
+            </div>
+
+            <!-- Contact -->
+            <div>
+                <h3 class="font-semibold text-lg mb-4">Contact Us</h3>
+                <ul class="space-y-2 text-sm text-gray-400">
+                    <li class="flex items-center space-x-2">
+                        <i class="fas fa-envelope"></i>
+                        <span>support@sfa.com</span>
+                    </li>
+                    <li class="flex items-center space-x-2">
+                        <i class="fas fa-phone"></i>
+                        <span>+977 980-000-0000</span>
+                    </li>
+                    <li class="flex items-center space-x-2">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>Kathmandu, Nepal</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-800 mt-8 pt-6 text-center text-xs text-gray-500">
+            <p>&copy; 2025 Service Finder Nepal. All rights reserved. | Made with <i class="fas fa-heart text-red-500"></i> in Nepal</p>
+        </div>
+    </div>
+</footer>

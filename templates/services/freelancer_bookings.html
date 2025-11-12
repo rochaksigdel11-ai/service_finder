@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}My Orders - Freelancer{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <h1 class="mb-4 text-primary">My Orders</h1>
+    
+    {% if bookings %}
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-primary">
+                <tr>
+                    <th>Customer</th>
+                    <th>Gig</th>
+                    <th>Package</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in bookings %}
+                <tr>
+                    <td>
+                        <strong>{{ b.buyer.username }}</strong>
+                    </td>
+                    <td>{{ b.overview.titleOverview }}</td>
+                    <td>{{ b.package.title }}</td>
+                    <td>{{ b.preferred_date }}</td>
+                    <td>
+                        <span class="badge bg-{% if b.status == 'pending' %}warning
+                        {% elif b.status == 'confirmed' %}info
+                        {% elif b.status == 'completed' %}success
+                        {% else %}danger{% endif %} text-white">
+                            {{ b.get_status_display }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if b.status == 'pending' %}
+                            <a href="{% url 'update_booking_status' b.id 'confirmed' %}" 
+                               class="btn btn-sm btn-outline-primary">Confirm</a>
+                        {% endif %}
+                        {% if b.status == 'confirmed' %}
+                            <a href="{% url 'update_booking_status' b.id 'completed' %}" 
+                               class="btn btn-sm btn-success">Complete</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+        <p class="text-muted">No orders yet. Create a gig and start earning!</p>
+        <a href="{% url 'create_job_profile' user.username %}" class="btn btn-success">
+            Create Your First Gig
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
