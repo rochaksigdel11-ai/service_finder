@@ -14,3 +14,11 @@ selenium==4.24.0  # UI tests
 requests==2.32.3  # APIs
 django-widget-tweaks==1.4.12  # Forms
 django-ratings==0.4.0  # Reviews (from search)
+Django>=5.0
+python-decouple
+django-bootstrap5
+whitenoise
+Pillow
+django-star-ratings
+python-dotenv
+requests

@@ -152,8 +152,7 @@ ESEWA_VERIFY_URL = "https://uat.esewa.com.np/epay/transrec"
 SPARROW_SMS_API_KEY = os.getenv('SPARROW_SMS_API_KEY')
 SPARROW_SMS_SENDER = os.getenv('SPARROW_SMS_SENDER', 'SFA')
 
-# GDAL (for GIS)
-GDAL_LIBRARY_PATH = r'C:\OSGeo4W\bin\gdal311.dll'
+
 
 # Default
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
