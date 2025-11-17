@@ -14,10 +14,8 @@ class Overview(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
     overall_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     search_tags = models.CharField(max_length=200, blank=True)
-    location_lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    location_lng = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    
-    
+    location_lat = models.FloatField(default=27.7)
+    location_lng = models.FloatField(default=85.7)
     is_active = models.BooleanField(default=True)
 
     def save(self, *args, **kwargs):

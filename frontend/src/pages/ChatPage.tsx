@@ -172,3 +172,7 @@ export default function ChatPage() {
     </div>
   );
 }
+
+axios.get('http://127.0.0.1:8000/api/orders/')
+axios.get('http://127.0.0.1:8000/api/chat/conversations/')
+

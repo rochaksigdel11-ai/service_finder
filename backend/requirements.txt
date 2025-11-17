@@ -6,6 +6,7 @@ charset-normalizer==3.4.4
 Django==5.2.8
 django-bootstrap5==25.2
 django-braces==1.17.0
+django-cors-headers==4.9.0
 django-esewa==1.0.9
 django-model-utils==5.0.0
 django-star-ratings==0.9.2

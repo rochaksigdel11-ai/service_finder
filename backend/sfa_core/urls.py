@@ -1,47 +1,38 @@
 """
-URL configuration for jobnest project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/4.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
-"""
 URL configuration for sfa_core project.
 """
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path  # ← FIXED: re_path
 from django.conf import settings
 from django.conf.urls.static import static
-from django.contrib.auth import views as auth_views
+from django.views.generic import TemplateView  # ← ADDED
+from Services.views import create_booking
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/auth/', include('accounts.urls')),
 
-    # Apps
+    # === API ENDPOINTS ===
+    path('', include('Services.urls')),           # /api/, /api/1/, /api/book/
+    path('api/auth/', include('accounts.urls')),
+    path('api/chat/', include('Chating.urls')),
+    path('api/orders/', include('Orders.urls')),
+    path('api/payments/', include('payments.urls')),
+    path('api/book/', create_booking, name='create_booking'),
+
+    # === WEB PAGES (Legacy HTML) ===
+    path('services/', include('Services.urls')),  # /services/view/1/
     path('accounts/', include('accounts.urls')),
-    path('services/', include('Services.urls')),
-    path('payments/', include('payments.urls')),
-    path('order/', include('Orders.urls')),
     path('dashboard/', include('UserDashboard.urls')),
     path('chat/', include('Chating.urls')),
 
-    # Home App — Includes IntroHome, login, logout, etc.
-    path('', include('Home.urls')),  # ← ONLY THIS ONE
-    path('api/', include('Services.urls')),
+    # === HOME ===
+    path('', include('Home.urls')),
 
-    # DO NOT ADD DUPLICATE ROOT PATHS
+    # === REACT CATCH-ALL (FRONTEND) ===
+    re_path(r'^.*$', TemplateView.as_view(template_name='index.html'), name='react'),
 ]
 
-# Serve media in development
+# === SERVE MEDIA IN DEBUG ===
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
