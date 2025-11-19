@@ -31,4 +31,6 @@ urlpatterns = [
     path('create/<str:identifier>/', views.create_job_profile, name='create_job_profile_web'),
     path('edit/<str:username>/<int:overview_id>/', views.edit_service, name='edit_service_web'),
     path('delete/<str:username>/<int:overview_id>/', views.delete_service, name='delete_service_web'),
+    path('esewa/success/', views.esewa_success, name='esewa_success'),
+    path('esewa/failure/', views.esewa_failure, name='esewa_failure'),
 ]

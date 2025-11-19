@@ -1,5 +1,9 @@
 """
 Django settings for sfa_core project.
+
+
+
+
 """
 from decouple import config
 from pathlib import Path
@@ -38,7 +42,7 @@ INSTALLED_APPS = [
     'Services',
     'Orders',
     'UserDashboard',
-    'Chating',
+    'chating',
     'core',
     'payments',
     'reviews',

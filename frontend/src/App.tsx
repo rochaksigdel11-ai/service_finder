@@ -1,79 +1,94 @@
-import React, { useContext } from 'react';
+// frontend/src/App.tsx — FINAL CLEAN VERSION
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useApp } from './context/AppContext';
 import Navbar from './components/Navbar';
 import Toast from './components/Toast';
-import { UserContext } from './context/UserContext.tsx';
-import LoginPage from './pages/LoginPage';
-import HomePage from './pages/HomePage';
-import DashboardPage from './pages/DashboardPage';
-import ChatPage from './pages/ChatPage';
-import PaymentPage from './pages/PaymentPage';
 import LoginModal from './components/LoginModal';
 import RegisterModal from './components/RegisterModal';
+
+// ALL YOUR PAGES
+import HomePage from './pages/HomePage';
+import LoginPage from './pages/LoginPage';
+import NearbyServices from './components/NearbyServices';
 import ServiceDetailPage from './pages/ServiceDetailPage';
-import { AppProvider } from './context/AppContext';
-import BuyerDashboard from './pages/BuyerDashboard';
 import SellerDashboard from './pages/SellerDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import ChatPage from './pages/ChatPage';
 import BookingConfirm from './pages/Bookingconfirm';
-import { UserProvider } from './context/UserContext.tsx';
+import ServicesPage from './pages/ServicesPage';
 
-function AppContent() {
-  const { user } = useContext(UserContext)!;
+const ProtectedRoute = ({ 
+  children, 
+  allowedRoles 
+}: { 
+  children: JSX.Element; 
+  allowedRoles?: string[] 
+}) => {
+  const { user } = useApp();
 
-  const ProtectedRoute = ({ children, allowedRoles }: { children: JSX.Element; allowedRoles: string[] }) => {
-    if (!user) return <Navigate to="/login" replace />;
-    if (!allowedRoles.includes(user.role)) return <Navigate to="/" replace />;
-    return children;
-  };
+  // No user → login
+  if (!user) return <Navigate to="/login" replace />;
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 to-indigo-900">
-      <Navbar />
-      <main className="container mx-auto px-4 py-8">
-        <Routes>
-          <Route path="/" element={<LoginPage />} /> 
-          <Route path="/" element={<HomePage />} />
+  // If role is required but missing or not allowed → home
+  if (allowedRoles && (!user.role || !allowedRoles.includes(user.role))) {
+    return <Navigate to="/" replace />;
+  }
 
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/chat" element={<ChatPage />} />
-          <Route path="/payment" element={<PaymentPage />} />
-          <Route path="/service/:id" element={<ServiceDetailPage />} />
-          <Route path="*" element={<HomePage />} />
-          <Route path="/booking/confirm" element={<BookingConfirm />} />
-          
-     
-          <Route path="/buyer/dashboard" element={<BuyerDashboard />} />
-          <Route path="/seller/dashboard" element={<SellerDashboard />} />
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        
-        </Routes>
-      </main>
-      <LoginModal />
-      <RegisterModal />
-      <Toast />
-    </div>
-  );
-}
-
+  return children;
+};
 function App() {
   return (
     <Router>
-      <AppProvider>
-        <UserProvider>
-          <AppContent />
-        </UserProvider>
-      </AppProvider>
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-pink-900">
+        <Navbar />
+        <main className="container mx-auto px-4 py-8">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<LoginPage />} />
+
+            {/* CUSTOMER GOES HERE AFTER LOGIN */}
+            <Route path="/services" element={<ServicesPage />} />
+            <Route path="/service/:id" element={<ServiceDetailPage />} />
+                        <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+
+
+            {/* FREELANCER DASHBOARD */}
+            <Route
+              path="/seller/dashboard"
+              element={
+                <ProtectedRoute allowedRoles={['seller', 'freelancer']}>
+                  <SellerDashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* ADMIN DASHBOARD */}
+            <Route
+              path="/admin/dashboard"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* OTHER PROTECTED PAGES */}
+            <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+            <Route path="/chat/:id" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+            <Route path="/booking/confirm" element={<ProtectedRoute><BookingConfirm /></ProtectedRoute>} />
+
+            {/* FALLBACK */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+
+        <LoginModal />
+        <RegisterModal />
+        <Toast />
+      </div>
     </Router>
   );
 }
 
-export default App;
-
-
-
-
-
-
-
+ export default App;

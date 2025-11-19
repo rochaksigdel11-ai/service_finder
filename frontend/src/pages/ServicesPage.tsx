@@ -91,7 +91,7 @@ export default function ServicesPage() {
                   </div>
                   <div className="flex items-center gap-1 text-slate-400">
                     <MapPin className="w-4 h-4" />
-                    <span>{s.distance_km.toFixed(1)} km</span>
+                      {s.distance_km != null ? Number(s.distance_km).toFixed(1) : 'N/A'} km
                   </div>
                 </div>
 

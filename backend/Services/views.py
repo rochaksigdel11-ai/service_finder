@@ -10,8 +10,15 @@ from django.utils import timezone
 from datetime import timedelta
 from django.contrib import messages
 from django.db import models
-from django.conf import settings  # ← ADDED!
-import requests  # ← MOVED TO TOP
+from django.conf import settings  
+import requests  
+import uuid
+import hashlib
+from django.urls import reverse
+from django.views.decorators.csrf import csrf_exempt
+
+
+
 
 # Local Models
 from .models import (
@@ -627,3 +634,96 @@ def seller_bookings_api(request):
         })
 
     return Response(data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def initiate_esewa_payment(request):
+    booking_id = request.data.get('booking_id')
+    try:
+        booking = Booking.objects.get(id=booking_id, buyer=request.user, status='pending')
+    except Booking.DoesNotExist:
+        return Response({'error': 'Invalid booking'}, status=400)
+
+    amount = float(booking.package.price)
+    transaction_uuid = str(uuid.uuid4())
+    product_code = "EPAYTEST" if settings.ESEWA_TEST_MODE else settings.ESEWA_MERCHANT_ID
+
+    # Save transaction ID
+    booking.transaction_id = transaction_uuid
+    booking.save()
+
+    signed_field = f"total_amount={amount},transaction_uuid={transaction_uuid},product_code={product_code}"
+    secret_key = "8gBm/:&EnhH.1/q"
+    signature = hashlib.md5(signed_field.encode()).hexdigest()
+
+    esewa_url = "https://uat.esewa.com.np/epay/main" if settings.ESEWA_TEST_MODE else "https://esewa.com.np/epay/main"
+
+    payload = {
+        'amount': amount,
+        'tax_amount': 0,
+        'total_amount': amount,
+        'transaction_uuid': transaction_uuid,
+        'product_code': product_code,
+        'product_service_charge': 0,
+        'product_delivery_charge': 0,
+        'success_url': request.build_absolute_uri(reverse('esewa_success')),
+        'failure_url': request.build_absolute_uri(reverse('esewa_failure')),
+        'signed_field_names': 'total_amount,transaction_uuid,product_code',
+        'signature': signature,
+    }
+
+    return Response({
+        'esewa_url': esewa_url,
+        'payload': payload
+    })
+    
+
+
+@csrf_exempt
+def esewa_success(request):
+    refId = request.GET.get('refId')
+    oid = request.GET.get('oid')
+    amount = request.GET.get('amt')
+
+    try:
+        booking = Booking.objects.get(transaction_id=oid)
+        booking.status = 'paid'
+        booking.save()
+
+        # SMS to both
+        send_sms(booking.buyer.userprofile.phone, f"Payment successful! Booking #{booking.id}")
+        send_sms(booking.overview.user.userprofile.phone, f"New paid booking from {booking.buyer.username}")
+
+        return redirect(f"http://localhost:5173/booking/confirm?success=true&booking={booking.id}")
+    except:
+        return redirect("http://localhost:5173/booking/confirm?error=true")
+
+@csrf_exempt
+def esewa_failure(request):
+    return redirect("http://localhost:5173/booking/confirm?error=true") 
+
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def request_payout(request):
+    if request.user.userprofile.role != 'freelancer':
+        return Response({'error': 'Access denied'}, status=403)
+
+    amount = Decimal(request.data.get('amount', 0))
+    esewa_id = request.data.get('esewa_id')
+
+    if amount < 500:
+        return Response({'error': 'Minimum Rs. 500'}, status=400)
+
+    # Check earnings (simplified)
+    total_earned = Booking.objects.filter(overview__user=request.user, status='completed').aggregate(
+        total=Sum('package__price')
+    )['total'] or 0
+
+    if amount > total_earned:
+        return Response({'error': 'Insufficient balance'}, status=400)
+
+    Payout.objects.create(seller=request.user, amount=amount, esewa_id=esewa_id)
+    return Response({'status': 'Payout requested! Will be processed in 24 hours'})

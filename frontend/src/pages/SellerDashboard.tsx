@@ -1,53 +1,112 @@
-import { DollarSign, Users, Star, TrendingUp } from 'lucide-react';
-
-interface Earning {
-  month: string;
-  amount: number;
-}
+import React, { useState, useEffect } from 'react';
+import { useApp } from '../context/AppContext';
+import axios from 'axios';
+import { Check, X, Clock, User, Phone, MessageCircle } from 'lucide-react';
 
 export default function SellerDashboard() {
-  const earnings: Earning[] = [
-    { month: 'Jan', amount: 45000 },
-    { month: 'Feb', amount: 52000 },
-    { month: 'Mar', amount: 68000 },
-    { month: 'Apr', amount: 71000 },
-  ];
+  const { user, notify } = useApp();
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchBookings();
+  }, []);
+
+  const fetchBookings = async () => {
+    try {
+      const res = await axios.get('/api/bookings/my-bookings/');
+      setBookings(res.data);
+    } catch (err) {
+      notify('Failed to load bookings', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateStatus = async (id: number, status: 'confirmed' | 'rejected') => {
+    try {
+      await axios.patch(`/api/bookings/${id}/`, { status });
+      notify(`Booking ${status}!`, 'success');
+      fetchBookings();
+    } catch (err) {
+      notify('Failed to update', 'error');
+    }
+  };
+
+  if (loading) return <div className="text-white text-center py-20">Loading your bookings...</div>;
 
   return (
-    <div className="p-6 bg-gradient-to-br from-indigo-50 to-purple-50 min-h-screen">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Seller Dashboard</h1>
-        <button className="bg-purple-600 text-white px-6 py-2 rounded-full hover:bg-purple-700">
-          + Add Service
-        </button>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-indigo-900 py-12">
+      <div className="container mx-auto px-6">
+<h1 className="text-5xl font-bold text-white mb-4">
+  Welcome back, {user?.username || 'Freelancer'}!
+</h1>
+        <div className="grid gap-6">
+          {bookings.length === 0 ? (
+            <div className="text-center py-20 bg-white/10 rounded-3xl">
+              <Clock className="w-20 h-20 mx-auto text-gray-400 mb-4" />
+              <p className="text-2xl text-gray-300">No bookings yet. Share your profile!</p>
+            </div>
+          ) : (
+            bookings.map((booking: any) => (
+              <div key={booking.id} className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 shadow-2xl">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h3 className="text-2xl font-bold text-white">{booking.service_title}</h3>
+                    <p className="text-gray-300">Package: {booking.package_type}</p>
+                  </div>
+                  <span className={`px-6 py-3 rounded-full text-lg font-bold ${
+                    booking.status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' :
+                    booking.status === 'confirmed' ? 'bg-green-500/20 text-green-300' :
+                    'bg-red-500/20 text-red-300'
+                  }`}>
+                    {booking.status.toUpperCase()}
+                  </span>
+                </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-xl shadow">
-          <DollarSign className="w-10 h-10 text-green-500 mb-3" />
-          <p className="text-3xl font-bold">Rs. 71,000</p>
-          <p className="text-gray-600">This Month</p>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow">
-          <Users className="w-10 h-10 text-blue-500 mb-3" />
-          <p className="text-3xl font-bold">24</p>
-          <p className="text-gray-600">Total Clients</p>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow">
-          <Star className="w-10 h-10 text-yellow-500 mb-3" />
-          <p className="text-3xl font-bold">4.9</p>
-          <p className="text-gray-600">Rating</p>
-        </div>
-      </div>
+                <div className="grid md:grid-cols-3 gap-6 mb-8 text-gray-300">
+                  <div className="flex items-center gap-3">
+                    <User className="w-6 h-6 text-cyan-400" />
+                    <div>
+                      <p className="text-sm text-gray-400">Customer</p>
+                      <p className="font-bold text-white">{booking.customer_name}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Phone className="w-6 h-6 text-green-400" />
+                    <div>
+                      <p className="text-sm text-gray-400">Phone</p>
+                      <p className="font-bold text-white">{booking.customer_phone}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <MessageCircle className="w-6 h-6 text-purple-400" />
+                    <div>
+                      <p className="text-sm text-gray-400">Message</p>
+                      <p className="text-white">{booking.message || 'No message'}</p>
+                    </div>
+                  </div>
+                </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow">
-          <h3 className="text-lg font-semibold mb-4">New Bookings</h3>
-          {/* List bookings */}
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow">
-          <h3 className="text-lg font-semibold mb-4">Earnings Trend</h3>
-          <TrendingUp className="w-32 h-32 text-green-500 mx-auto" />
+                {booking.status === 'pending' && (
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => updateStatus(booking.id, 'confirmed')}
+                      className="flex-1 bg-green-500 hover:bg-green-600 text-black font-bold py-4 rounded-2xl flex items-center justify-center gap-3"
+                    >
+                      <Check className="w-6 h-6" /> Confirm Booking
+                    </button>
+                    <button
+                      onClick={() => updateStatus(booking.id, 'rejected')}
+                      className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3"
+                    >
+                      <X className="w-6 h-6" /> Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

@@ -15,7 +15,7 @@ urlpatterns = [
     # === API ENDPOINTS ===
     path('', include('Services.urls')),           # /api/, /api/1/, /api/book/
     path('api/auth/', include('accounts.urls')),
-    path('api/chat/', include('Chating.urls')),
+    path('api/chat/', include('chating.urls')),
     path('api/orders/', include('Orders.urls')),
     path('api/payments/', include('payments.urls')),
     path('api/book/', create_booking, name='create_booking'),
@@ -24,7 +24,7 @@ urlpatterns = [
     path('services/', include('Services.urls')),  # /services/view/1/
     path('accounts/', include('accounts.urls')),
     path('dashboard/', include('UserDashboard.urls')),
-    path('chat/', include('Chating.urls')),
+    path('chat/', include('chating.urls')),
 
     # === HOME ===
     path('', include('Home.urls')),

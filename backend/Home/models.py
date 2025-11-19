@@ -23,6 +23,7 @@ class UserProfile(models.Model):
     profile_image = models.ImageField(upload_to='profiles/', default=default_profile_image, blank=True)
     country = models.CharField(max_length=50, default='Nepal')
     state = models.CharField(max_length=50, default='Bagmati')
+    phone = models.CharField(max_length=15, blank=True, null=True)  # ← ADD THIS
     website_link = models.URLField(blank=True, null=True)
     about_me = models.TextField()
     overall_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00, null=True, blank=True)
