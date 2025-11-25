@@ -20,36 +20,36 @@ export default function ServicesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchServices = async () => {
-      try {
-        const res = await axios.get('http://127.0.0.1:8000/api/services/');
-        
-        // EVEN IF API WORKS — CHECK IF DATA IS EMPTY
-        if (Array.isArray(res.data) && res.data.length > 0) {
-          setServices(res.data);
-          console.log("REAL SERVICES LOADED:", res.data);
-        } else {
-          throw new Error("No real data");
-        }
-      } catch (err) {
-        // THIS WILL ALWAYS RUN IF API EMPTY OR ERROR
-        notify('Showing beautiful demo services', 'success');
-        setServices([
-          { id: 1, titleOverview: "Professional React + Django Full Stack Website", provider: "raju", overall_rating: 4.9, distance_km: 2.4 },
-          { id: 2, titleOverview: "Mobile App Development (React Native)", provider: "himal", overall_rating: 4.8, distance_km: 5.1 },
-          { id: 3, titleOverview: "Logo & Complete Branding Package", provider: "gita", overall_rating: 5.0, distance_km: 1.8 },
-          { id: 4, titleOverview: "YouTube Video Editing Pro", provider: "sabin", overall_rating: 4.7, distance_km: 3.9 },
-          { id: 5, titleOverview: "Digital Marketing & SEO Expert", provider: "anisha", overall_rating: 4.8, distance_km: 4.2 },
-          { id: 6, titleOverview: "3D Animation & VFX", provider: "prabin", overall_rating: 4.9, distance_km: 6.8 }
-        ]);
-      } finally {
-        setLoading(false);
+// In ServicesPage.tsx - Fix the notification type
+useEffect(() => {
+  const fetchServices = async () => {
+    try {
+      const res = await axios.get('http://127.0.0.1:8000/api/');
+      
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        setServices(res.data);
+        console.log("REAL SERVICES LOADED:", res.data);
+      } else {
+        throw new Error("No real data");
       }
-    };
+    } catch (err) {
+      // ✅ FIXED: Changed "info" to "success"
+      notify('Showing demo services', 'success');
+      setServices([
+        { id: 1, titleOverview: "Professional React + Django Full Stack Website", provider: "raju", overall_rating: 4.9, distance_km: 2.4 },
+        { id: 2, titleOverview: "Mobile App Development (React Native)", provider: "himal", overall_rating: 4.8, distance_km: 5.1 },
+        { id: 3, titleOverview: "Logo & Complete Branding Package", provider: "gita", overall_rating: 5.0, distance_km: 1.8 },
+        { id: 4, titleOverview: "YouTube Video Editing Pro", provider: "sabin", overall_rating: 4.7, distance_km: 3.9 },
+        { id: 5, titleOverview: "Digital Marketing & SEO Expert", provider: "anisha", overall_rating: 4.8, distance_km: 4.2 },
+        { id: 6, titleOverview: "3D Animation & VFX", provider: "prabin", overall_rating: 4.9, distance_km: 6.8 }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchServices();
-  }, []);
+  fetchServices();
+}, []);
 
   const filtered = services.filter(s =>
     s.titleOverview.toLowerCase().includes(searchTerm.toLowerCase()) ||

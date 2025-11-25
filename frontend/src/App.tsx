@@ -6,8 +6,6 @@ import Navbar from './components/Navbar';
 import Toast from './components/Toast';
 import LoginModal from './components/LoginModal';
 import RegisterModal from './components/RegisterModal';
-
-// ALL YOUR PAGES
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import NearbyServices from './components/NearbyServices';
@@ -17,6 +15,10 @@ import AdminDashboard from './pages/AdminDashboard';
 import ChatPage from './pages/ChatPage';
 import BookingConfirm from './pages/Bookingconfirm';
 import ServicesPage from './pages/ServicesPage';
+import SellerBookings from './pages/SellerBookings';
+import FreelancerDashboard from './pages/SellerDashboard';
+
+
 
 const ProtectedRoute = ({ 
   children, 
@@ -80,6 +82,8 @@ function App() {
 
             {/* FALLBACK */}
             <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="/seller-bookings" element={<SellerBookings />} />
+            <Route path="/freelancer-dashboard" element={<FreelancerDashboard />} />
           </Routes>
         </main>
 

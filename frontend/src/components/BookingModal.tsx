@@ -33,7 +33,7 @@ export default function BookingModal({ service, onClose }: BookingModalProps) {
       return;
     }
 
-    axios.post('http://127.0.0.1:8000/api/bookings/', {
+    axios.post('http://127.0.0.1:8000/api/book/', {
       overview: service.id,
       package: selectedPkg.id,
       preferred_date: date
