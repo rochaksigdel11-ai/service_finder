@@ -33,3 +33,14 @@ class BookingViewSet(viewsets.ModelViewSet):
             booking.save()
             return Response({'message': f'Booking {status} successfully'})
         return Response({'error': 'Invalid status'}, status=400)
+    
+    
+    
+    
+    
+class FreelancerBookingViewSet(viewsets.ModelViewSet):
+    serializer_class = BookingSerializer
+    
+    def get_queryset(self):
+        # Return only bookings for the logged-in freelancer
+        return Booking.objects.filter(freelancer=self.request.user)

@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from . import views
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .views import profile_api \
@@ -38,5 +38,6 @@ urlpatterns = [
     path('esewa/success/', views.esewa_success, name='esewa_success'),
     path('esewa/failure/', views.esewa_failure, name='esewa_failure'),
     path('api/profile/', profile_api),
+    path('api/bookings/<int:booking_id>/update_status/', views.update_booking_status_api, name='update_booking_status_api'),
 
 ]

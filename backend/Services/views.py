@@ -252,36 +252,35 @@ def book_service(request, overview_id):
     packages = Package.objects.filter(overview=overview)
 
     if request.method == 'POST':
-        package_type = request.POST.get('package')
-        preferred_date = request.POST.get('date')
-        message = request.POST.get('message', '')
+         package_type = request.POST.get('package')
+         preferred_date = request.POST.get('date')
+         message = request.POST.get('message', '')
 
-        package = get_object_or_404(Package, overview=overview, package_type=package_type)
-
-        booking = Booking.objects.create(
-            buyer=request.user,
-            overview=overview,
-            package=package,
-            preferred_date=preferred_date,
-            message=message,
-            status='pending'
+         package = get_object_or_404(Package, overview=overview, package_type=package_type)
+         booking = Booking.objects.create(
+            customer=request.user,  # This matches your model
+            freelancer=overview.user,  # ADD THIS LINE - crucial!
+            service=overview,  # This matches your model
+            package_type=package_type,
+            booking_date=preferred_date,
+            # ... other fields ...
         )
 
-        buyer_phone = request.user.userprofile.phone
-        seller_phone = overview.user.userprofile.phone
-        if buyer_phone:
+         buyer_phone = request.user.userprofile.phone
+         seller_phone = overview.user.userprofile.phone
+         if buyer_phone:
             send_sms(buyer_phone, f"Booking sent for {overview.titleOverview}")
-        if seller_phone:
+         if seller_phone:
             send_sms(seller_phone, f"New booking from {request.user.username}")
 
-        messages.success(request, "Booking request sent!")
-        return redirect('view_service_profile', overview.id)
+         messages.success(request, "Booking request sent!")
+         return redirect('view_service_profile', overview.id)
 
     context = {
-        'overview': overview,
+         'overview': overview,
         'packages': packages,
         'today': timezone.now().date().isoformat()
-    }
+          }
     return render(request, 'services/book.html', context)
 
 
@@ -382,8 +381,8 @@ def seller_bookings(request):
         messages.error(request, "Only Freelancers can access bookings.")
         return redirect('search_services')  # Now safe!
 
-    bookings = Booking.objects.filter(overview__user=request.user).select_related(
-        'buyer__user', 'overview', 'package'
+    bookings = Booking.objects.filter(freelancer=request.user).select_related(
+        'buyer__user', 'service', 'package'
     ).order_by('-created_at')
 
     return render(request, 'services/seller_bookings.html', {'bookings': bookings})
@@ -542,9 +541,13 @@ def service_reviews(request, service_id):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def service_detail(request, pk):
+    """API endpoint to get service details by ID"""
     try:
+        print(f"🔍 DEBUG: service_detail called for ID: {pk}")
         service = Overview.objects.get(pk=pk, is_active=True)
         packages = Package.objects.filter(overview=service)
+        
+        print(f"🔍 DEBUG: Found service: {service.titleOverview}")
 
         data = {
             'id': service.id,
@@ -552,7 +555,6 @@ def service_detail(request, pk):
             'provider': service.user.username,
             'description': service.descriptions.first().description if service.descriptions.exists() else 'No description',
             'overall_rating': float(service.overall_rating) if service.overall_rating else 0.0,
-            'distance_km': 3.2,
             'packages': [{
                 'id': p.id,
                 'package_type': p.package_type,
@@ -561,10 +563,16 @@ def service_detail(request, pk):
                 'delivery_time': p.delivery_time
             } for p in packages]
         }
+        print(f"🔍 DEBUG: Returning data: {data}")
         return Response(data)
+        
     except Overview.DoesNotExist:
+        print(f"🔍 DEBUG: Service {pk} not found")
         return Response({'error': 'Service not found'}, status=404)
-
+    except Exception as e:
+        print(f"🔍 DEBUG: Service detail error: {str(e)}")
+        return Response({'error': str(e)}, status=500)
+    
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -583,36 +591,61 @@ def user_orders(request):
     return Response(data)
 
 
+# In your services/views.py - add debug prints
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_booking(request):
     try:
+        print("🔍 DEBUG: create_booking called")
+        print("🔍 DEBUG: User:", request.user.username)
+        print("🔍 DEBUG: Data received:", request.data)
+        
         overview_id = request.data.get('overview')
         package_id = request.data.get('package')
         preferred_date = request.data.get('preferred_date')
+        
         if not preferred_date:
+            print("🔍 DEBUG: No date provided")
             return Response({'error': 'Please select a date'}, status=400)
 
         if not overview_id or not package_id:
+            print("🔍 DEBUG: Missing overview or package ID")
             return Response({'error': 'Missing overview or package ID'}, status=400)
 
         overview = Overview.objects.get(id=overview_id)
         package = Package.objects.get(id=package_id, overview=overview)
+        
+        print("🔍 DEBUG: Overview found:", overview.titleOverview)
+        print("🔍 DEBUG: Package found:", package.title)
 
+        # Create the booking
         booking = Booking.objects.create(
-            buyer=request.user,
-            overview=overview,
-            package=package,
-            preferred_date=preferred_date,
+            customer=request.user,
+            freelancer=overview.user,  # This is critical!
+            service=overview,
+            package_type=package.package_type,
+            booking_date=preferred_date,
+            booking_time="12:00:00",  # Default time
+            customer_name=request.user.get_full_name() or request.user.username,
+            customer_phone=getattr(request.user.userprofile, 'phone', '9800000000'),
+            message=request.data.get('message', ''),
+            total_amount=package.price,
             status='pending'
         )
+        
+        print(f"🔍 DEBUG: Booking created! ID: {booking.id}")
+        print(f"🔍 DEBUG: Customer: {booking.customer}, Freelancer: {booking.freelancer}")
+        
         return Response({'status': 'booked', 'booking_id': booking.id})
+        
     except Overview.DoesNotExist:
+        print("🔍 DEBUG: Overview not found")
         return Response({'error': 'Service not found'}, status=404)
     except Package.DoesNotExist:
+        print("🔍 DEBUG: Package not found")
         return Response({'error': 'Package not found'}, status=404)
     except Exception as e:
-        print(f"Booking error: {e}")
+        print(f"🔍 DEBUG: Booking error: {str(e)}")
         return Response({'error': 'Booking failed. Please try again.'}, status=500)
     
 @api_view(['GET'])
@@ -621,25 +654,28 @@ def seller_bookings_api(request):
     if not hasattr(request.user, 'userprofile') or request.user.userprofile.role != 'freelancer':
         return Response({'error': 'Access denied'}, status=403)
 
-    bookings = Booking.objects.filter(overview__user=request.user).select_related(
-        'buyer__userprofile', 'overview', 'package'
+    # FIX: Use freelancer field
+    bookings = Booking.objects.filter(freelancer=request.user).select_related(
+        'customer', 'service'
     ).order_by('-created_at')
 
     data = []
     for b in bookings:
         data.append({
             'id': b.id,
-            'buyer': b.buyer.username,
-            'buyer_avatar': b.buyer.username[0].upper(),
-            'service': b.overview.titleOverview,
-            'package': b.package.package_type.title(),
-            'price': float(b.package.price),
-            'date': b.preferred_date.strftime('%Y-%m-%d'),
+            'customer': b.customer.username,  # Changed from buyer
+            'customer_avatar': b.customer.username[0].upper(),
+            'service': b.service.titleOverview,  # Changed from overview
+            'package': b.package_type.title(),  # Direct field
+            'price': float(b.total_amount),  # Changed from package.price
+            'date': b.booking_date.strftime('%Y-%m-%d'),
+            'time': b.booking_time.strftime('%H:%M'),
             'status': b.status,
             'message': b.message or ''
         })
 
     return Response(data)
+
 
 
 @api_view(['POST'])
@@ -764,3 +800,88 @@ def profile_view(request):
         'role': getattr(user, 'role', 'customer'),  # or 'seller', 'admin'
     }
     return Response(data)    
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def seller_bookings_api(request):
+    """API endpoint for freelancers to view their bookings"""
+    print("🔍 DEBUG: ======= SELLER BOOKINGS API CALLED =======")
+    print(f"🔍 DEBUG: User: {request.user.username}")
+    
+    try:
+        # Check user profile and role
+        if not hasattr(request.user, 'userprofile'):
+            print("🔍 DEBUG: ERROR - User has no profile")
+            return Response({'error': 'User profile not found'}, status=403)
+        
+        profile = request.user.userprofile
+        print(f"🔍 DEBUG: User role: {profile.role}")
+        
+        if profile.role not in ['freelancer', 'seller']:
+            print(f"🔍 DEBUG: ERROR - Wrong role: {profile.role}")
+            return Response({'error': 'Access denied - freelancers only'}, status=403)
+
+        # Get bookings for this freelancer
+        print(f"🔍 DEBUG: Fetching bookings for freelancer: {request.user.username}")
+        bookings = Booking.objects.filter(freelancer=request.user).select_related(
+            'customer', 'service'
+        ).order_by('-created_at')
+        
+        print(f"🔍 DEBUG: Found {bookings.count()} bookings in database")
+        
+        data = []
+        for booking in bookings:
+            print(f"🔍 DEBUG: Processing booking {booking.id}")
+            booking_data = {
+                'id': booking.id,
+                'customer': booking.customer.username,
+                'customer_avatar': booking.customer.username[0].upper(),
+                'service': booking.service.titleOverview,
+                'package': booking.package_type.title(),
+                'price': float(booking.total_amount),
+                'date': booking.booking_date.strftime('%Y-%m-%d'),
+                'time': booking.booking_time.strftime('%H:%M'),
+                'status': booking.status,
+                'message': booking.message or ''
+            }
+            data.append(booking_data)
+            print(f"🔍 DEBUG: Added booking: {booking.customer.username} -> {booking.service.titleOverview}")
+
+        print(f"🔍 DEBUG: ✅ Returning {len(data)} bookings")
+        return Response(data)
+        
+    except Exception as e:
+        print(f"🔍 DEBUG: ❌ ERROR in seller_bookings_api: {str(e)}")
+        import traceback
+        print(f"🔍 DEBUG: Traceback: {traceback.format_exc()}")
+        return Response({'error': f'Server error: {str(e)}'}, status=500)
+    
+    
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_booking_status_api(request, booking_id):
+    """API endpoint to update booking status"""
+    try:
+        booking = Booking.objects.get(id=booking_id, freelancer=request.user)
+        new_status = request.data.get('status')
+        
+        if new_status in ['confirmed', 'completed', 'rejected']:
+            booking.status = new_status
+            booking.save()
+            
+            # Send SMS notification
+            try:
+                send_sms(booking.customer_phone, f"Your booking status updated to {new_status}")
+            except:
+                pass
+                
+            return Response({'status': 'updated', 'new_status': new_status})
+        else:
+            return Response({'error': 'Invalid status'}, status=400)
+            
+    except Booking.DoesNotExist:
+        return Response({'error': 'Booking not found'}, status=404)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)    
