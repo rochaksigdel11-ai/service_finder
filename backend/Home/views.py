@@ -10,7 +10,7 @@ from django.forms import inlineformset_factory
 
 from .forms import UserProfileForm, CertificationForm, LanguageForm
 from .models import UserProfile, Certification, Language, RatingSeller
-from Services.models import Overview, Category, Booking, Package
+from services.models import Overview, Category, Booking, Package
 
 
 def intro_home(request):

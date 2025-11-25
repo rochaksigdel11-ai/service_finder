@@ -1,17 +1,21 @@
 from django.urls import path
 from . import views
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from .views import profile_api \
+
 
 urlpatterns = [
     # === PUBLIC API (REACT FRONTEND) ===
     path('api/', views.service_list, name='service_list_api'),
     path('api/<int:pk>/', views.service_detail, name='service_detail_api'),
     path('api/nearby/', views.nearby_services_api, name='nearby_services_api'),
+    
 
     # === BOOKING API ===
     path('api/book/', views.create_booking, name='create_booking'),  # POST
     path('api/orders/', views.user_orders, name='user_orders_api'),  # Buyer
     path('api/seller/bookings/', views.seller_bookings_api, name='seller_bookings_api'),  # Seller
+    
 
     # === CHAT API ===
     path('api/chat/conversations/', views.chat_conversations, name='chat_conversations'),
@@ -33,4 +37,6 @@ urlpatterns = [
     path('delete/<str:username>/<int:overview_id>/', views.delete_service, name='delete_service_web'),
     path('esewa/success/', views.esewa_success, name='esewa_success'),
     path('esewa/failure/', views.esewa_failure, name='esewa_failure'),
+    path('api/profile/', profile_api),
+
 ]

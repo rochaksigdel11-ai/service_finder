@@ -7,6 +7,8 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from .serializers import RegisterSerializer, LoginSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
+from Home.models import UserProfile
+
 
 
 @api_view(['POST'])
@@ -37,19 +39,8 @@ def login(request):
         })
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def profile(request):
-    # Line 10 fix: This is the missing function
-    return Response({
-        'id': request.user.id,
-        'username': request.user.username,
-        'email': request.user.email,
-        'profile': {  # Add UserProfile if exists
-            'phone': request.user.userprofile.phone if hasattr(request.user, 'userprofile') else None
-        }
-    })
-    
+
+ 
 class CustomTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
         username = request.data.get('username')
@@ -60,3 +51,33 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             serializer.is_valid(raise_exception=True)
             return Response(serializer.validated_data, status=status.HTTP_200_OK)
         return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)    
+    
+    
+    
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def profile_view(request):
+    user = request.user
+    try:
+        profile = UserProfile.objects.get(user=user)
+        role = profile.role
+    except UserProfile.DoesNotExist:
+        # Auto create profile if missing
+        profile = UserProfile.objects.create(user=user, role='customer')
+        role = 'customer'
+
+    # FORCE CORRECT ROLE NAMES THAT FRONTEND EXPECTS
+    if user.username == 'admin' or user.is_superuser:
+        role = 'admin'
+    elif user.username == 'raju':
+        role = 'seller'
+
+    return Response({
+        'id': user.id,
+        'username': user.username,
+        'email': user.email or '',
+        'role': role,                    # ← THIS MUST BE 'admin', 'seller', or 'customer'
+        'fullName': getattr(user, 'full_name', user.username),
+        'isAuthenticated': True
+    })

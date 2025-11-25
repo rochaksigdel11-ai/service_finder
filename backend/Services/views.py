@@ -16,7 +16,13 @@ import uuid
 import hashlib
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
-
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.contrib.auth import get_user_model
 
 
 
@@ -705,25 +711,56 @@ def esewa_failure(request):
 
 
 
-@api_view(['POST'])
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+# def request_payout(request):
+#     if request.user.userprofile.role != 'freelancer':
+#         return Response({'error': 'Access denied'}, status=403)
+
+#     amount = Decimal(request.data.get('amount', 0))
+#     esewa_id = request.data.get('esewa_id')
+
+#     if amount < 500:
+#         return Response({'error': 'Minimum Rs. 500'}, status=400)
+
+#     # Check earnings (simplified)
+#     total_earned = Booking.objects.filter(overview__user=request.user, status='completed').aggregate(
+#         total=Sum('package__price')
+#     )['total'] or 0
+
+#     if amount > total_earned:
+#         return Response({'error': 'Insufficient balance'}, status=400)
+
+#     Payout.objects.create(seller=request.user, amount=amount, esewa_id=esewa_id)
+    # return Response({'status': 'Payout requested! Will be processed in 24 hours'})
+    
+    
+    
+@api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def request_payout(request):
-    if request.user.userprofile.role != 'freelancer':
-        return Response({'error': 'Access denied'}, status=403)
+def profile_api(request):
+    user = request.user
+    profile, _ = UserProfile.objects.get_or_create(user=user)
 
-    amount = Decimal(request.data.get('amount', 0))
-    esewa_id = request.data.get('esewa_id')
+    return Response({
+        'username': user.username,
+        'role': profile.role,
+        'full_name': user.get_full_name(),
+    })  
+    
+    
+    
 
-    if amount < 500:
-        return Response({'error': 'Minimum Rs. 500'}, status=400)
+User = get_user_model()
 
-    # Check earnings (simplified)
-    total_earned = Booking.objects.filter(overview__user=request.user, status='completed').aggregate(
-        total=Sum('package__price')
-    )['total'] or 0
-
-    if amount > total_earned:
-        return Response({'error': 'Insufficient balance'}, status=400)
-
-    Payout.objects.create(seller=request.user, amount=amount, esewa_id=esewa_id)
-    return Response({'status': 'Payout requested! Will be processed in 24 hours'})
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def profile_view(request):
+    user = request.user
+    data = {
+        'username': user.username,
+        'email': user.email,
+        'full_name': getattr(user, 'full_name', user.username),
+        'role': getattr(user, 'role', 'customer'),  # or 'seller', 'admin'
+    }
+    return Response(data)    

@@ -7,7 +7,7 @@ from django.db.models import Count, Q, Sum
 from Home.models import UserProfile
 from payments.models import Transaction, SellerAccountBalance, PaymentWithdrawal, Refund_details
 from Orders.models import Order
-from Services.models import Overview
+from services.models import Overview
 
 
 def Seller_Dashboard(request, username):

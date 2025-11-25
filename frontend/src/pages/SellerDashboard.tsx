@@ -1,113 +1,136 @@
+// src/pages/freelancer/FreelancerDashboard.tsx  ← OR SellerDashboard.tsx
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
 import axios from 'axios';
-import { Check, X, Clock, User, Phone, MessageCircle } from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { 
+  Calendar, Clock, MapPin, Phone, MessageCircle, 
+  CheckCircle, XCircle, TrendingUp, Users, DollarSign, Star, Briefcase
+} from 'lucide-react';
 
-export default function SellerDashboard() {
+export default function FreelancerDashboard() {
   const { user, notify } = useApp();
-  const [bookings, setBookings] = useState([]);
+  const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchBookings();
-  }, []);
+    if (user) fetchBookings();
+  }, [user]);
 
   const fetchBookings = async () => {
     try {
-      const res = await axios.get('/api/bookings/my-bookings/');
-      setBookings(res.data);
+      const token = localStorage.getItem('access_token');
+      const res = await axios.get('http://127.0.0.1:8000/api/bookings/', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const data = Array.isArray(res.data) ? res.data : [];
+      setBookings(data);
     } catch (err) {
-      notify('Failed to load bookings', 'error');
+      console.log("No bookings");
+      setBookings([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const updateStatus = async (id: number, status: 'confirmed' | 'rejected') => {
+  const updateBookingStatus = async (booking: any, status: 'confirmed' | 'rejected') => {
     try {
-      await axios.patch(`/api/bookings/${id}/`, { status });
-      notify(`Booking ${status}!`, 'success');
+      const token = localStorage.getItem('access_token');
+      const bookingId = booking.id || booking.pk || booking.booking_id;
+      
+      await axios.patch(`http://127.0.0.1:8000/api/bookings/${bookingId}/`, 
+        { status },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      notify(`Booking ${status}!`, "success");
       fetchBookings();
     } catch (err) {
-      notify('Failed to update', 'error');
+      notify("Update failed", "error");
     }
   };
 
-  if (loading) return <div className="text-white text-center py-20">Loading your bookings...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 to-indigo-900 flex items-center justify-center">
+        <p className="text-white text-4xl font-bold animate-pulse">Loading...</p>
+      </div>
+    );
+  }
+
+  const pendingBookings = bookings.filter(b => b.status === 'pending');
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-indigo-900 py-12">
-      <div className="container mx-auto px-6">
-<h1 className="text-5xl font-bold text-white mb-4">
-  Welcome back, {user?.username || 'Freelancer'}!
-</h1>
-        <div className="grid gap-6">
-          {bookings.length === 0 ? (
-            <div className="text-center py-20 bg-white/10 rounded-3xl">
-              <Clock className="w-20 h-20 mx-auto text-gray-400 mb-4" />
-              <p className="text-2xl text-gray-300">No bookings yet. Share your profile!</p>
-            </div>
-          ) : (
-            bookings.map((booking: any) => (
-              <div key={booking.id} className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 shadow-2xl">
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <h3 className="text-2xl font-bold text-white">{booking.service_title}</h3>
-                    <p className="text-gray-300">Package: {booking.package_type}</p>
-                  </div>
-                  <span className={`px-6 py-3 rounded-full text-lg font-bold ${
-                    booking.status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' :
-                    booking.status === 'confirmed' ? 'bg-green-500/20 text-green-300' :
-                    'bg-red-500/20 text-red-300'
-                  }`}>
-                    {booking.status.toUpperCase()}
-                  </span>
-                </div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-pink-900">
+      <div className="container mx-auto px-6 py-12">
+        <h1 className="text-6xl font-bold text-white text-center mb-12">
+          Welcome, <span className="text-yellow-400">{user?.username}</span>
+        </h1>
 
-                <div className="grid md:grid-cols-3 gap-6 mb-8 text-gray-300">
-                  <div className="flex items-center gap-3">
-                    <User className="w-6 h-6 text-cyan-400" />
+        {pendingBookings.length === 0 ? (
+          <div className="text-center py-32">
+            <Clock className="w-32 h-32 mx-auto text-gray-400 mb-8" />
+            <p className="text-5xl text-gray-300 font-bold">No pending bookings</p>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {pendingBookings.map((booking) => {
+              const bookingId = booking.id || booking.pk || booking.booking_id || 0;
+              
+              return (
+                <div key={bookingId} className="bg-white/10 backdrop-blur-xl rounded-3xl p-10 border border-white/20">
+                  <div className="flex justify-between items-start mb-8">
                     <div>
-                      <p className="text-sm text-gray-400">Customer</p>
-                      <p className="font-bold text-white">{booking.customer_name}</p>
+                      <h3 className="text-4xl font-bold text-white">
+                        {booking.customer_name || booking.customer?.username || 'Customer'}
+                      </h3>
+                      <p className="text-2xl text-cyan-400 mt-2">
+                        {booking.service_title || booking.overview?.titleOverview || 'Service'}
+                      </p>
                     </div>
+                    <span className="bg-yellow-500 text-black px-8 py-4 rounded-full text-2xl font-bold">
+                      PENDING
+                    </span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Phone className="w-6 h-6 text-green-400" />
-                    <div>
-                      <p className="text-sm text-gray-400">Phone</p>
-                      <p className="font-bold text-white">{booking.customer_phone}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <MessageCircle className="w-6 h-6 text-purple-400" />
-                    <div>
-                      <p className="text-sm text-gray-400">Message</p>
-                      <p className="text-white">{booking.message || 'No message'}</p>
-                    </div>
-                  </div>
-                </div>
 
-                {booking.status === 'pending' && (
-                  <div className="flex gap-4">
+                  <div className="grid md:grid-cols-3 gap-6 text-gray-300 mb-8">
+                    <div className="flex items-center gap-4">
+                      <Calendar className="w-8 h-8 text-purple-400" />
+                      <span className="text-xl">{booking.booking_date || 'Not set'}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Clock className="w-8 h-8 text-blue-400" />
+                      <span className="text-xl">{booking.booking_time?.slice(0,5) || 'Anytime'}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Phone className="w-8 h-8 text-green-400" />
+                      <span className="text-xl">{booking.customer_phone || 'Not provided'}</span>
+                    </div>
+                  </div>
+
+                  {booking.message && (
+                    <p className="text-lg text-gray-300 italic mb-8">"{booking.message}"</p>
+                  )}
+
+                  <div className="flex gap-6">
                     <button
-                      onClick={() => updateStatus(booking.id, 'confirmed')}
-                      className="flex-1 bg-green-500 hover:bg-green-600 text-black font-bold py-4 rounded-2xl flex items-center justify-center gap-3"
+                      onClick={() => updateBookingStatus(booking, 'confirmed')}
+                      className="flex-1 bg-green-500 hover:bg-green-600 text-black font-bold text-2xl py-6 rounded-3xl"
                     >
-                      <Check className="w-6 h-6" /> Confirm Booking
+                      CONFIRM BOOKING
                     </button>
                     <button
-                      onClick={() => updateStatus(booking.id, 'rejected')}
-                      className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3"
+                      onClick={() => updateBookingStatus(booking, 'rejected')}
+                      className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold text-2xl py-6 rounded-3xl"
                     >
-                      <X className="w-6 h-6" /> Reject
+                      REJECT BOOKING
                     </button>
                   </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

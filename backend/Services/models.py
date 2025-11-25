@@ -1,4 +1,5 @@
 # Services/models.py
+from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -9,7 +10,7 @@ class Category(models.Model):
     def __str__(self): return self.name
 
 class Overview(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, )
     titleOverview = models.CharField(max_length=100)
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
     overall_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
@@ -73,7 +74,7 @@ class Gallery(models.Model):
 class RatingService(models.Model):
     overview = models.ForeignKey(Overview, on_delete=models.CASCADE, related_name='service_ratings')
     review_rating = models.DecimalField(max_digits=3, decimal_places=2, validators=[MinValueValidator(0.5), MaxValueValidator(5.0)])
-    reviewer = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='service_ratings_given')
+    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='service_ratings_given')
     title = models.CharField(max_length=50)
     review = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -91,7 +92,7 @@ class Booking(models.Model):
         ('pending', 'Pending'), ('confirmed', 'Confirmed'),
         ('completed', 'Completed'), ('cancelled', 'Cancelled'),
     ]
-    buyer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='service_bookings')
+    buyer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='service_bookings')
     overview = models.ForeignKey(Overview, on_delete=models.CASCADE, related_name='service_bookings_received')
     package = models.ForeignKey(Package, on_delete=models.SET_NULL, null=True, blank=True)
     preferred_date = models.DateField()
@@ -108,8 +109,8 @@ class Booking(models.Model):
     
     
 class Message(models.Model):
-    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
-    receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages')
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sent_messages')
+    receiver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='received_messages')
     overview = models.ForeignKey(Overview, on_delete=models.CASCADE)
     content = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
@@ -120,7 +121,7 @@ class Message(models.Model):
         
         
 class Payout(models.Model):
-    seller = models.ForeignKey(User, on_delete=models.CASCADE)
+    seller = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     esewa_id = models.CharField(max_length=20)
     status = models.CharField(max_length=20, default='pending')

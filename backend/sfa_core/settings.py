@@ -39,13 +39,17 @@ INSTALLED_APPS = [
     
     'accounts',
     'Home',
-    'Services',
     'Orders',
     'UserDashboard',
     'chating',
     'core',
     'payments',
     'reviews',
+    'services',
+    'bookings',
+     
+
+    
 ]
 
 MIDDLEWARE = [
@@ -152,3 +156,6 @@ CORS_ALLOWED_ORIGINS = [
 
 # Default
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+AUTH_USER_MODEL = 'accounts.User'

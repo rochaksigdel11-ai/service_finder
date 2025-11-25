@@ -40,14 +40,14 @@ class SkillAdmin(admin.ModelAdmin):
 
 @admin.register(Certification)
 class CertificationAdmin(admin.ModelAdmin):
-    list_display = ('user_profile', 'title', 'issuing_organization', 'issue_date')
+    list_display = ('user', 'title', 'issuing_organization', 'issue_date')
     list_filter = ('issue_date',)
     search_fields = ('title', 'issuing_organization')
 
 
 @admin.register(Language)
 class LanguageAdmin(admin.ModelAdmin):
-    list_display = ('user_profile', 'language', 'proficiency')
+    list_display = ('user', 'language', 'proficiency')
     list_filter = ('proficiency', 'language')
     search_fields = ('language',)
 
