@@ -41,7 +41,7 @@ export default function ServiceDetail() {
 
   const fetchService = async () => {
     try {
-      const res = await axios.get(`http://127.0.0.1:8000/api/services/${id}/`);
+      const res = await axios.get(`http://127.0.0.1:8000/api/${id}/`);
       console.log("Service data:", res.data);
       
       // Check if response is HTML (API error)
@@ -158,7 +158,7 @@ export default function ServiceDetail() {
                 </div>
                 <div>
                   <p className="text-3xl font-bold text-white">{service.provider}</p>
-                  <p className="text-cyan-400 text-xl">Top Rated • Nepal</p>
+                  <p className="text-cyan-400 text-xl">Top Rate • Nepal</p>
                 </div>
               </div>
             </div>

@@ -21,8 +21,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 from django.contrib.auth import get_user_model
+from rest_framework.permissions import IsAdminUser
+from django.db.models import Sum
+
 
 
 
@@ -51,6 +53,8 @@ from core.decorators import is_buyer, is_seller
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from bookings.models import Booking  # or from .models import Booking if it's in services app
+
 
 
 # ────── Haversine Distance ──────
@@ -577,76 +581,103 @@ def service_detail(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_orders(request):
-    bookings = Booking.objects.filter(buyer=request.user)
+    bookings = Booking.objects.filter(customer=request.user).select_related('service', 'freelancer')
     data = []
     for b in bookings:
         data.append({
             'id': b.id,
-            'service': b.overview.titleOverview,
-            'provider': b.overview.user.username,
+            'service': b.service.titleOverview,
+            'provider': b.freelancer.username,
             'status': b.status.lower(),
             'date': b.preferred_date.strftime('%Y-%m-%d'),
-            'amount': float(b.package.price) if b.package else 0
+            'amount': float(b.total_amount),
         })
     return Response(data)
 
 
-# In your services/views.py - add debug prints
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_booking(request):
+    """API endpoint to create a booking"""
+    print("🔍 DEBUG: ======= CREATE BOOKING CALLED =======")
+    print(f"🔍 DEBUG: User: {request.user.username}")
+    print(f"🔍 DEBUG: Request data: {request.data}")
+    
     try:
-        print("🔍 DEBUG: create_booking called")
-        print("🔍 DEBUG: User:", request.user.username)
-        print("🔍 DEBUG: Data received:", request.data)
-        
         overview_id = request.data.get('overview')
         package_id = request.data.get('package')
         preferred_date = request.data.get('preferred_date')
+        message = request.data.get('message', '')
         
-        if not preferred_date:
-            print("🔍 DEBUG: No date provided")
-            return Response({'error': 'Please select a date'}, status=400)
+        print(f"🔍 DEBUG: overview_id: {overview_id}, package_id: {package_id}")
+        print(f"🔍 DEBUG: preferred_date: {preferred_date}")
 
+        # Validate required fields
         if not overview_id or not package_id:
             print("🔍 DEBUG: Missing overview or package ID")
             return Response({'error': 'Missing overview or package ID'}, status=400)
 
-        overview = Overview.objects.get(id=overview_id)
-        package = Package.objects.get(id=package_id, overview=overview)
-        
-        print("🔍 DEBUG: Overview found:", overview.titleOverview)
-        print("🔍 DEBUG: Package found:", package.title)
+        if not preferred_date:
+            print("🔍 DEBUG: No date provided")
+            return Response({'error': 'Please select a date'}, status=400)
 
-        # Create the booking
+        # Get the service and package
+        try:
+            overview = Overview.objects.get(id=overview_id)
+            package = Package.objects.get(id=package_id, overview=overview)
+            print(f"🔍 DEBUG: Found service: {overview.titleOverview}")
+            print(f"🔍 DEBUG: Found package: {package.title}")
+            print(f"🔍 DEBUG: Service owner (freelancer): {overview.user.username}")
+        except Overview.DoesNotExist:
+            print(f"🔍 DEBUG: Overview {overview_id} not found")
+            return Response({'error': 'Service not found'}, status=404)
+        except Package.DoesNotExist:
+            print(f"🔍 DEBUG: Package {package_id} not found for service {overview_id}")
+            return Response({'error': 'Package not found'}, status=404)
+        
+        # BULLETPROOF PHONE — WORKS 100% ALWAYS
+        try:
+             customer_phone = request.user.userprofile.phone
+        except AttributeError:
+           customer_phone = "9800000000"   # no profile → use default
+        if not customer_phone:
+          customer_phone = "9800000000"   # profile exists but phone empty → default
+
+        # Create booking
         booking = Booking.objects.create(
             customer=request.user,
-            freelancer=overview.user,  # This is critical!
+            freelancer=overview.user,  # Critical: set the freelancer!
             service=overview,
             package_type=package.package_type,
             booking_date=preferred_date,
             booking_time="12:00:00",  # Default time
             customer_name=request.user.get_full_name() or request.user.username,
-            customer_phone=getattr(request.user.userprofile, 'phone', '9800000000'),
-            message=request.data.get('message', ''),
+            customer_phone=customer_phone,
+            message=message,
             total_amount=package.price,
             status='pending'
         )
         
-        print(f"🔍 DEBUG: Booking created! ID: {booking.id}")
-        print(f"🔍 DEBUG: Customer: {booking.customer}, Freelancer: {booking.freelancer}")
+        print(f"🔍 DEBUG: ✅ Booking created successfully! ID: {booking.id}")
+        print(f"🔍 DEBUG: Customer: {booking.customer.username}")
+        print(f"🔍 DEBUG: Freelancer: {booking.freelancer.username}")
+        print(f"🔍 DEBUG: Service: {booking.service.titleOverview}")
+        print(f"🔍 DEBUG: Amount: {booking.total_amount}")
+        print(f"🔍 DEBUG: Status: {booking.status}")
+
+        return Response({
+            'status': 'booked', 
+            'booking_id': booking.id,
+            'message': 'Booking created successfully'
+        })
         
-        return Response({'status': 'booked', 'booking_id': booking.id})
-        
-    except Overview.DoesNotExist:
-        print("🔍 DEBUG: Overview not found")
-        return Response({'error': 'Service not found'}, status=404)
-    except Package.DoesNotExist:
-        print("🔍 DEBUG: Package not found")
-        return Response({'error': 'Package not found'}, status=404)
     except Exception as e:
-        print(f"🔍 DEBUG: Booking error: {str(e)}")
-        return Response({'error': 'Booking failed. Please try again.'}, status=500)
+        print(f"🔍 DEBUG: ❌ Booking creation failed: {str(e)}")
+        import traceback
+        print(f"🔍 DEBUG: Traceback: {traceback.format_exc()}")
+        return Response({'error': f'Booking failed: {str(e)}'}, status=500)
+          
     
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -841,8 +872,7 @@ def seller_bookings_api(request):
                 'service': booking.service.titleOverview,
                 'package': booking.package_type.title(),
                 'price': float(booking.total_amount),
-                'date': booking.booking_date.strftime('%Y-%m-%d'),
-                'time': booking.booking_time.strftime('%H:%M'),
+                'date': booking.booking_date.strftime('%Y-%m-%d'),                'time': booking.booking_time.strftime('%H:%M'),
                 'status': booking.status,
                 'message': booking.message or ''
             }
@@ -885,3 +915,34 @@ def update_booking_status_api(request, booking_id):
         return Response({'error': 'Booking not found'}, status=404)
     except Exception as e:
         return Response({'error': str(e)}, status=500)    
+    
+    
+    
+User = get_user_model()
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def admin_stats_api(request):
+    """Real-time admin dashboard data"""
+    total_users = User.objects.count()
+    total_services = Overview.objects.filter(is_active=True).count()
+    
+    revenue_result = Booking.objects.filter(status='completed').aggregate(total=Sum('total_amount'))
+    total_revenue = revenue_result['total'] or 0
+    
+    pending_bookings = Booking.objects.filter(status='pending').count()
+
+    recent_users = list(User.objects.values('id', 'username', 'email', 'date_joined').order_by('-date_joined')[:10])
+    recent_bookings = list(Booking.objects.select_related('customer', 'service').values(
+        'id', 'customer__username', 'service__titleOverview', 'total_amount', 'status', 'booking_date', 'created_at'
+    ).order_by('-created_at')[:10])
+
+    return Response({
+        'stats': {
+            'totalUsers': total_users,
+            'totalServices': total_services,
+            'totalRevenue': float(total_revenue),
+            'pendingBookings': pending_bookings,
+        },
+        'recentUsers': recent_users,
+        'recentBookings': recent_bookings,
+    })    

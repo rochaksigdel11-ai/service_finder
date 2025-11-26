@@ -35,8 +35,8 @@ export default function HomePage() {
 
           {/* Customer */}
           <button
-  onClick={() => {
-    if (user) {
+      onClick={() => {
+       if (user) {
       navigate('/services');
     } else {
       navigate('/login?role=customer');

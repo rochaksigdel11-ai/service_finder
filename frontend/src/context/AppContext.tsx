@@ -1,10 +1,12 @@
-// frontend/src/context/AppContext.tsx
-import React, { createContext, useContext, useState } from 'react';
-import axios from 'axios'; // ← ADDED
+// frontend/src/context/AppContext.tsx — FIXED VERSION
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import axios from 'axios';
 
 interface User {
-  role?: string;
+  id: number;
   username: string;
+  email: string;
+  role: 'customer' | 'freelancer' | 'seller' | 'admin';
 }
 
 interface ToastState {
@@ -16,7 +18,7 @@ interface ToastState {
 interface AppContextType {
   user: User | null;
   setUser: (user: User | null) => void;
-  login: (username: string, password: string) => Promise<void>; // ← ASYNC
+  login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   toast: ToastState;
   notify: (msg: string, type: 'success' | 'error') => void;
@@ -24,6 +26,7 @@ interface AppContextType {
   setShowLogin: (v: boolean) => void;
   showRegister: boolean;
   setShowRegister: (v: boolean) => void;
+  loading: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -33,14 +36,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [toast, setToast] = useState<ToastState>({ message: '', type: 'success', visible: false });
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // JWT AUTO-HEADER
+  // Axios configuration - SAME AS BOOKINGS PAGE
   axios.defaults.baseURL = 'http://127.0.0.1:8000';
-  axios.interceptors.request.use(config => {
-    const token = localStorage.getItem('access_token');
-    if (token) config.headers.Authorization = `Bearer ${token}`;
-    return config;
-  });
+
+  // FETCH USER PROFILE - USING SAME LOGIC AS BOOKINGS PAGE
+  const fetchUserProfile = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      console.log('Fetching user profile, token exists:', !!token);
+      
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      // Set authorization header explicitly
+      const config = {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      };
+
+      const res = await axios.get('/api/profile/', config);
+      console.log('User profile fetched successfully:', res.data);
+      setUser(res.data);
+    } catch (err: any) {
+      console.error('Failed to fetch user profile:', err);
+      console.log('Error status:', err.response?.status);
+      console.log('Error data:', err.response?.data);
+      
+      // Clear invalid token
+      localStorage.removeItem('access_token');
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch user on app startup - SAME AS BOOKINGS PAGE LOGIC
+  useEffect(() => {
+    console.log('AppProvider initialized - checking authentication...');
+    fetchUserProfile();
+  }, []);
 
   const notify = (message: string, type: 'success' | 'error') => {
     setToast({ message, type, visible: true });
@@ -48,21 +87,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const login = async (username: string, password: string) => {
-  try {
-    const res = await axios.post('http://127.0.0.1:8000/api/token/', {
-      username,
-      password
-    });
-    localStorage.setItem('access_token', res.data.access);
-    axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.access}`;
-    setUser({ username });
-    notify('Login successful!', 'success');
-  } catch (err: any) {
-    notify('Wrong username or password', 'error');
-  }
-};
+    try {
+      console.log('Attempting login...');
+      const res = await axios.post('/api/token/', { username, password });
+      const token = res.data.access;
+      
+      // Store token - SAME AS BOOKINGS PAGE
+      localStorage.setItem('access_token', token);
+      console.log('Login successful, token stored');
+      
+      // Fetch user profile after login
+      await fetchUserProfile();
+      notify('Login successful!', 'success');
+    } catch (err: any) {
+      console.error('Login failed:', err);
+      notify('Wrong username or password', 'error');
+      throw err;
+    }
+  };
 
   const logout = () => {
+    console.log('Logging out...');
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     setUser(null);
@@ -73,14 +118,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider value={{
       user,
       setUser,
-      login,           // ← ADDED
+      login,
       logout,
       toast,
       notify,
       showLogin,
       setShowLogin,
       showRegister,
-      setShowRegister
+      setShowRegister,
+      loading
     }}>
       {children}
       {/* TOAST UI */}

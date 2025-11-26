@@ -39,5 +39,5 @@ urlpatterns = [
     path('esewa/failure/', views.esewa_failure, name='esewa_failure'),
     path('api/profile/', profile_api),
     path('api/bookings/<int:booking_id>/update_status/', views.update_booking_status_api, name='update_booking_status_api'),
-
+    path('admin/stats/', views.admin_stats_api, name='admin_stats'),
 ]
