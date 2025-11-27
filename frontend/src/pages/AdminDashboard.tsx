@@ -29,7 +29,7 @@ export default function AdminDashboard() {
 
       // Fetch all real data
       const [usersRes, servicesRes, bookingsRes] = await Promise.all([
-        axios.get('http://127.0.0.1:8000/api/auth/users/'),
+        axios.get('http://127.0.0.1:8000/api/admin/stats/'),
         axios.get('http://127.0.0.1:8000/api/'),
         axios.get('http://127.0.0.1:8000/api/bookings/')
       ]);

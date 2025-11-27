@@ -1,195 +1,312 @@
-// src/pages/freelancer/FreelancerDashboard.tsx - FIXED
+// src/pages/SellerDashboard.tsx - UPDATED WITH CORRECT ENDPOINT
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { Package, Clock, CheckCircle, XCircle, RefreshCw, MessageCircle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { 
-  Calendar, Clock, MapPin, Phone, MessageCircle, 
-  CheckCircle, XCircle, TrendingUp, Users, DollarSign, Star, Briefcase
-} from 'lucide-react';
 
-export default function FreelancerDashboard() {
+interface Booking {
+  id: number;
+  customer: string;
+  customer_avatar: string;
+  service: string;
+  package: string;
+  price: number;
+  date: string;
+  time: string;
+  status: string;
+  message: string;
+}
+
+export default function SellerDashboard() {
   const { user, notify } = useApp();
-  const [bookings, setBookings] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    if (user) fetchBookings();
-  }, [user]);
+  const fetchBookings = async () => {
+    try {
+      setRefreshing(true);
+      const token = localStorage.getItem('access_token');
+      
+      console.log('🔍 Fetching seller bookings from:', 'http://127.0.0.1:8000/api/seller/bookings/');
+      
+      const response = await axios.get('http://127.0.0.1:8000/api/seller/bookings/', {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('✅ Bookings data received:', response.data);
+      setBookings(response.data);
+      
+    } catch (error: any) {
+      console.error('❌ Failed to fetch seller bookings:', error);
+      
+      if (error.response) {
+        console.log('Error response:', error.response);
+        console.log('Error status:', error.response.status);
+        console.log('Error data:', error.response.data);
+        
+        if (error.response.status === 404) {
+          notify('API endpoint not found. Please check backend.', 'error');
+        } else if (error.response.status === 403) {
+          notify('Access denied. Only freelancers can view bookings.', 'error');
+        } else if (error.response.status === 500) {
+          notify('Server error. Please check Django console.', 'error');
+        } else {
+          notify(`Error ${error.response.status}: ${error.response.data?.error || 'Unknown error'}`, 'error');
+        }
+      } else if (error.request) {
+        console.log('Error request:', error.request);
+        notify('Network error. Cannot connect to server.', 'error');
+      } else {
+        notify('Unexpected error occurred.', 'error');
+      }
+      
+      setBookings([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
-  // In FreelancerDashboard.tsx - FIX THE API ENDPOINT
-const fetchBookings = async () => {
-  try {
-    const token = localStorage.getItem('access_token');
-    // ✅ CORRECT: Use seller bookings endpoint
-    const res = await axios.get('http://127.0.0.1:8000/api/seller/bookings/', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    console.log("Seller bookings API response:", res.data);
-    const data = Array.isArray(res.data) ? res.data : [];
-    setBookings(data);
-  } catch (err: any) {
-    console.error("Failed to fetch seller bookings:", err);
-    notify('Failed to load bookings: ' + (err.response?.data?.error || 'Check console'), 'error');
-    setBookings([]);
-  } finally {
-    setLoading(false);
-  }
-};
-
-  const updateBookingStatus = async (bookingId: number, status: 'confirmed' | 'completed' | 'rejected') => {
+  const updateBookingStatus = async (bookingId: number, newStatus: string) => {
     try {
       const token = localStorage.getItem('access_token');
       
-      // ✅ Use the correct update endpoint (you might need to create this)
-      await axios.post(`http://127.0.0.1:8000/api/bookings/${bookingId}/update_status/`, 
-        { status },
-        { headers: { Authorization: `Bearer ${token}` } }
+      const response = await axios.post(
+        `http://127.0.0.1:8000/api/bookings/${bookingId}/update_status/`,
+        { status: newStatus },
+        { 
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          } 
+        }
       );
       
-      notify(`Booking ${status}!`, "success");
-      fetchBookings(); // Refresh the list
-    } catch (err) {
-      notify("Update failed - check console", "error");
-      console.error("Status update error:", err);
+      notify(`Booking ${newStatus} successfully!`, 'success');
+      
+      // Update local state
+      setBookings(prev => prev.map(booking => 
+        booking.id === bookingId ? { ...booking, status: newStatus } : booking
+      ));
+      
+    } catch (error: any) {
+      console.error('Failed to update booking status:', error);
+      
+      if (error.response?.data?.error) {
+        notify(`Failed: ${error.response.data.error}`, 'error');
+      } else {
+        notify('Failed to update booking status', 'error');
+      }
     }
+  };
+
+  useEffect(() => {
+    fetchBookings();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchBookings, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getStatusBadge = (status: string) => {
+    const statusLower = status.toLowerCase();
+    if (statusLower === 'confirmed' || statusLower === 'completed') {
+      return (
+        <div className="flex items-center gap-2 bg-green-500/20 text-green-300 px-4 py-2 rounded-full font-bold border-2 border-green-500/50">
+          <CheckCircle className="w-5 h-5" />
+          {status.toUpperCase()}
+        </div>
+      );
+    }
+    if (statusLower === 'rejected' || statusLower === 'cancelled') {
+      return (
+        <div className="flex items-center gap-2 bg-red-500/20 text-red-300 px-4 py-2 rounded-full font-bold border-2 border-red-500/50">
+          <XCircle className="w-5 h-5" />
+          {status.toUpperCase()}
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-2 bg-yellow-500/20 text-yellow-300 px-4 py-2 rounded-full font-bold border-2 border-yellow-500/50">
+        <Clock className="w-5 h-5" />
+        PENDING
+      </div>
+    );
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 to-indigo-900 flex items-center justify-center">
-        <p className="text-white text-4xl font-bold animate-pulse">Loading your bookings...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white text-2xl">Loading your bookings...</p>
+        </div>
       </div>
     );
   }
 
-  // Show all bookings, not just pending
-  const allBookings = bookings;
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-pink-900">
-      <div className="container mx-auto px-6 py-12">
-        <h1 className="text-6xl font-bold text-white text-center mb-12">
-          Welcome, <span className="text-yellow-400">{user?.username}</span>
-        </h1>
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 py-12">
+      <div className="container mx-auto px-6 max-w-7xl">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-6xl font-bold text-white mb-6">Freelancer Dashboard</h1>
+          <div className="inline-flex items-center gap-4 bg-white/10 backdrop-blur-xl rounded-full px-8 py-4 border border-white/20">
+            <RefreshCw className={`w-6 h-6 text-cyan-400 ${refreshing ? 'animate-spin' : ''}`} />
+            <p className="text-xl text-cyan-300">Real-Time Updates • Every 30 Seconds</p>
+            <div className="w-4 h-4 bg-green-400 rounded-full animate-pulse"></div>
+          </div>
+        </div>
 
-        {/* Stats Summary */}
+        {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
           <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 text-center border border-white/20">
-            <Users className="w-12 h-12 mx-auto text-cyan-400 mb-2" />
-            <p className="text-3xl font-bold text-white">{allBookings.length}</p>
+            <p className="text-4xl font-bold text-white">{bookings.length}</p>
             <p className="text-gray-300">Total Bookings</p>
           </div>
           <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 text-center border border-white/20">
-            <Clock className="w-12 h-12 mx-auto text-yellow-400 mb-2" />
-            <p className="text-3xl font-bold text-white">
-              {allBookings.filter(b => b.status === 'pending').length}
+            <p className="text-4xl font-bold text-yellow-400">
+              {bookings.filter(b => b.status.toLowerCase() === 'pending').length}
             </p>
             <p className="text-gray-300">Pending</p>
           </div>
           <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 text-center border border-white/20">
-            <CheckCircle className="w-12 h-12 mx-auto text-green-400 mb-2" />
-            <p className="text-3xl font-bold text-white">
-              {allBookings.filter(b => b.status === 'confirmed').length}
+            <p className="text-4xl font-bold text-green-400">
+              {bookings.filter(b => b.status.toLowerCase() === 'confirmed').length}
             </p>
             <p className="text-gray-300">Confirmed</p>
           </div>
           <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 text-center border border-white/20">
-            <DollarSign className="w-12 h-12 mx-auto text-green-500 mb-2" />
-            <p className="text-3xl font-bold text-white">
-              ₹{allBookings.reduce((sum, b) => sum + (b.price || 0), 0)}
+            <p className="text-4xl font-bold text-blue-400">
+              {bookings.reduce((total, booking) => total + booking.price, 0).toLocaleString()}
             </p>
-            <p className="text-gray-300">Total Value</p>
+            <p className="text-gray-300">Total Revenue (₹)</p>
           </div>
         </div>
 
-        {allBookings.length === 0 ? (
-          <div className="text-center py-32 bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20">
-            <Briefcase className="w-32 h-32 mx-auto text-gray-400 mb-8" />
-            <p className="text-5xl text-gray-300 font-bold mb-4">No bookings yet</p>
-            <p className="text-2xl text-gray-400">When customers book your services, they'll appear here.</p>
+        {bookings.length === 0 ? (
+          <div className="text-center py-24">
+            <Package className="w-40 h-40 text-gray-600 mx-auto mb-10 opacity-50" />
+            <p className="text-4xl text-gray-400 mb-8">No bookings yet</p>
+            <p className="text-2xl text-gray-500 mb-12">When customers book your services, they'll appear here</p>
+            <Link 
+              to="/services" 
+              className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 px-12 py-6 rounded-full text-2xl font-bold shadow-2xl transform hover:scale-110 transition-all"
+            >
+              Manage Your Services
+            </Link>
           </div>
         ) : (
           <div className="space-y-8">
-            {allBookings.map((booking) => {
-              return (
-                <div key={booking.id} className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
-                  <div className="flex justify-between items-start mb-6">
-                    <div>
-                      <h3 className="text-3xl font-bold text-white mb-2">
-                        {booking.service}
-                      </h3>
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                          {booking.customer_avatar}
-                        </div>
-                        <div>
-                          <p className="text-xl text-white font-semibold">{booking.customer}</p>
-                          <p className="text-lg text-cyan-400">Package: {booking.package}</p>
-                        </div>
+            {bookings.map((booking) => (
+              <div 
+                key={booking.id}
+                className="bg-white/10 backdrop-blur-2xl rounded-3xl p-8 border-2 border-white/20 hover:border-cyan-500/70 shadow-2xl hover:shadow-cyan-500/30 transition-all"
+              >
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-full flex items-center justify-center text-2xl font-bold text-white border-4 border-white/50">
+                        {booking.customer_avatar}
+                      </div>
+                      <div>
+                        <h3 className="text-3xl font-bold text-white">{booking.customer}</h3>
+                        <p className="text-xl text-cyan-300">Booked: {booking.service}</p>
                       </div>
                     </div>
-                    <span className={`px-6 py-3 rounded-full text-xl font-bold ${
-                      booking.status === 'pending' ? 'bg-yellow-500 text-black' :
-                      booking.status === 'confirmed' ? 'bg-green-500 text-white' :
-                      booking.status === 'completed' ? 'bg-blue-500 text-white' :
-                      'bg-red-500 text-white'
-                    }`}>
-                      {booking.status.toUpperCase()}
-                    </span>
+                    
+                    <div className="grid md:grid-cols-2 gap-6 mt-6">
+                      <div className="space-y-3">
+                        <p className="text-gray-300 text-lg">
+                          <span className="font-semibold text-white">Package:</span> {booking.package}
+                        </p>
+                        <p className="text-gray-300 text-lg">
+                          <span className="font-semibold text-white">Date:</span> {new Date(booking.date).toLocaleDateString('en-GB', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </p>
+                        <p className="text-gray-300 text-lg">
+                          <span className="font-semibold text-white">Time:</span> {booking.time}
+                        </p>
+                      </div>
+                      <div className="space-y-3">
+                        <p className="text-3xl font-bold text-green-400">
+                          ₹ {booking.price.toLocaleString()}
+                        </p>
+                        {booking.message && (
+                          <p className="text-gray-300 text-lg">
+                            <span className="font-semibold text-white">Message:</span> {booking.message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-6 text-gray-300 mb-6">
-                    <div className="flex items-center gap-4">
-                      <Calendar className="w-6 h-6 text-purple-400" />
-                      <span className="text-lg">Date: {booking.date}</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <Clock className="w-6 h-6 text-blue-400" />
-                      <span className="text-lg">Time: {booking.time}</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <DollarSign className="w-6 h-6 text-green-400" />
-                      <span className="text-lg">Amount: ₹{booking.price}</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <MessageCircle className="w-6 h-6 text-cyan-400" />
-                      <span className="text-lg">Message: {booking.message || 'No message'}</span>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-4">
-                    {booking.status === 'pending' && (
-                      <>
+                  <div className="flex flex-col items-end gap-6">
+                    {getStatusBadge(booking.status)}
+                    
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap gap-3">
+                      {booking.status.toLowerCase() === 'pending' && (
+                        <>
+                          <button
+                            onClick={() => updateBookingStatus(booking.id, 'confirmed')}
+                            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 px-6 py-3 rounded-full font-bold text-white shadow-lg transform hover:scale-105 transition-all"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => updateBookingStatus(booking.id, 'rejected')}
+                            className="bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 px-6 py-3 rounded-full font-bold text-white shadow-lg transform hover:scale-105 transition-all"
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
+                      
+                      {booking.status.toLowerCase() === 'confirmed' && (
                         <button
-                          onClick={() => updateBookingStatus(booking.id, 'confirmed')}
-                          className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold text-xl py-4 rounded-2xl transition-all"
+                          onClick={() => updateBookingStatus(booking.id, 'completed')}
+                          className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 px-6 py-3 rounded-full font-bold text-white shadow-lg transform hover:scale-105 transition-all"
                         >
-                          CONFIRM BOOKING
+                          Mark Complete
                         </button>
-                        <button
-                          onClick={() => updateBookingStatus(booking.id, 'rejected')}
-                          className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold text-xl py-4 rounded-2xl transition-all"
-                        >
-                          REJECT BOOKING
-                        </button>
-                      </>
-                    )}
-                    {booking.status === 'confirmed' && (
-                      <button
-                        onClick={() => updateBookingStatus(booking.id, 'completed')}
-                        className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold text-xl py-4 rounded-2xl transition-all"
+                      )}
+                      
+                      <Link
+                        to={`/chat/${booking.id}`}
+                        className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 px-6 py-3 rounded-full font-bold text-white shadow-lg transform hover:scale-105 transition-all flex items-center gap-2"
                       >
-                        MARK AS COMPLETED
-                      </button>
-                    )}
+                        <MessageCircle className="w-5 h-5" />
+                        Chat
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
+
+        {/* Refresh Button */}
+        <div className="text-center mt-16">
+          <button
+            onClick={fetchBookings}
+            disabled={refreshing}
+            className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 px-10 py-5 rounded-full text-2xl font-bold shadow-2xl transform hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-4 mx-auto"
+          >
+            <RefreshCw className={`w-8 h-8 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh Bookings'}
+          </button>
+        </div>
       </div>
     </div>
   );

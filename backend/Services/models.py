@@ -10,7 +10,7 @@ class Category(models.Model):
     def __str__(self): return self.name
 
 class Overview(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, )
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     titleOverview = models.CharField(max_length=100)
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
     overall_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
@@ -86,43 +86,56 @@ class RatingService(models.Model):
         super().save(*args, **kwargs)
         self.overview.update_rating()
 
-# BOOKING MODEL — FIXED
+# In services/models.py - UPDATE YOUR BOOKING MODEL
+# In services/models.py - FINAL CLEAN BOOKING MODEL
 class Booking(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'), ('confirmed', 'Confirmed'),
         ('completed', 'Completed'), ('cancelled', 'Cancelled'),
     ]
+    
+    # Core booking fields
     buyer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='service_bookings')
     overview = models.ForeignKey(Overview, on_delete=models.CASCADE, related_name='service_bookings_received')
     package = models.ForeignKey(Package, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Date and communication
     preferred_date = models.DateField()
     message = models.TextField(blank=True)
+    
+    # Status and metadata
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Optional fields for compatibility - COMMENT THESE OUT FOR NOW
+    # customer_name = models.CharField(max_length=100, blank=True)
+    # customer_phone = models.CharField(max_length=15, blank=True)
+    # total_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
     class Meta:
         ordering = ['-created_at']
 
+    # REMOVE THE save() METHOD TEMPORARILY
+    # def save(self, *args, **kwargs):
+    #     # Auto-populate fields
+    #     if not self.customer_name and self.buyer:
+    #         self.customer_name = self.buyer.get_full_name() or self.buyer.username
+    #     if not self.total_amount and self.package:
+    #         self.total_amount = self.package.price
+    #     super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.buyer.username} → {self.overview.titleOverview}"
-    
-    
-class Message(models.Model):
-    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sent_messages')
-    receiver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='received_messages')
-    overview = models.ForeignKey(Overview, on_delete=models.CASCADE)
-    content = models.TextField()
-    timestamp = models.DateTimeField(auto_now_add=True)
-    is_read = models.BooleanField(default=False)
 
-    class Meta:
-        ordering = ['timestamp']
-        
-        
+    @property
+    def freelancer(self):
+        """Get freelancer from overview relationship"""
+        return self.overview.user
+    
 class Payout(models.Model):
     seller = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     esewa_id = models.CharField(max_length=20)
     status = models.CharField(max_length=20, default='pending')
-    created_at = models.DateTimeField(auto_now_add=True)        
+    created_at = models.DateTimeField(auto_now_add=True)

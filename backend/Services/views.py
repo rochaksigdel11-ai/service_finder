@@ -25,13 +25,11 @@ from django.contrib.auth import get_user_model
 from rest_framework.permissions import IsAdminUser
 from django.db.models import Sum
 
-
-
-
 # Local Models
 from .models import (
     Overview, Package, Description, Question,
-    Gallery, RatingService, Message, Booking, 
+    Gallery, RatingService, Booking, Payout
+    # REMOVED: Message - using chating app instead
 )
 
 # Local Forms
@@ -53,9 +51,6 @@ from core.decorators import is_buyer, is_seller
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from bookings.models import Booking  # or from .models import Booking if it's in services app
-
-
 
 # ────── Haversine Distance ──────
 from math import radians, sin, cos, sqrt, atan2
@@ -291,18 +286,31 @@ def book_service(request, overview_id):
 # ────── CHAT ──────
 @login_required
 def chat_view(request, overview_id):
+    """Template-based chat view - UPDATED to use chating app"""
     overview = get_object_or_404(Overview, id=overview_id)
-    other_user = overview.user if request.user != overview.user else Booking.objects.filter(overview=overview).first().buyer
-    messages = Message.objects.filter(overview=overview).order_by('timestamp')
+    
+    # Try to import from chating app
+    try:
+        from chating.models import Message
+        other_user = overview.user if request.user != overview.user else Booking.objects.filter(service=overview).first().customer
+        messages = Message.objects.filter(service=overview).order_by('timestamp')
+    except ImportError:
+        # Fallback if chating app not available
+        messages = []
+        other_user = overview.user
 
     if request.method == 'POST':
         content = request.POST.get('content')
-        Message.objects.create(
-            sender=request.user,
-            receiver=other_user,
-            overview=overview,
-            content=content
-        )
+        try:
+            from chating.models import Message
+            Message.objects.create(
+                sender=request.user,
+                receiver=other_user,
+                service=overview,
+                message=content
+            )
+        except ImportError:
+            messages.error(request, "Chat functionality not available")
         return redirect('chat_view', overview_id)
 
     return render(request, 'services/chat.html', {
@@ -386,7 +394,7 @@ def seller_bookings(request):
         return redirect('search_services')  # Now safe!
 
     bookings = Booking.objects.filter(freelancer=request.user).select_related(
-        'buyer__user', 'service', 'package'
+        'customer__user', 'service', 'package'
     ).order_by('-created_at')
 
     return render(request, 'services/seller_bookings.html', {'bookings': bookings})
@@ -395,7 +403,7 @@ def seller_bookings(request):
 @login_required
 @is_seller
 def update_booking_status(request, booking_id, status):
-    booking = get_object_or_404(Booking, id=booking_id, overview__user=request.user)
+    booking = get_object_or_404(Booking, id=booking_id, service__user=request.user)
     if status in ['confirmed', 'completed', 'cancelled']:
         booking.status = status
         booking.save()
@@ -454,67 +462,79 @@ def get_profile(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def chat_conversations(request):
-    sent = Message.objects.filter(sender=request.user).values_list('receiver', flat=True).distinct()
-    received = Message.objects.filter(receiver=request.user).values_list('sender', flat=True).distinct()
-    users = set(sent) | set(received)
+    """Get chat conversations - UPDATED to use chating app"""
+    try:
+        from chating.models import Message
+        sent = Message.objects.filter(sender=request.user).values_list('receiver', flat=True).distinct()
+        received = Message.objects.filter(receiver=request.user).values_list('sender', flat=True).distinct()
+        users = set(sent) | set(received)
 
-    data = []
-    for u in users:
-        try:
-            profile = UserProfile.objects.get(user=u)
-            last_msg = Message.objects.filter(
-                models.Q(sender=request.user, receiver=u) |
-                models.Q(sender=u, receiver=request.user)
-            ).order_by('-timestamp').first()
+        data = []
+        for u in users:
+            try:
+                profile = UserProfile.objects.get(user=u)
+                last_msg = Message.objects.filter(
+                    models.Q(sender=request.user, receiver=u) |
+                    models.Q(sender=u, receiver=request.user)
+                ).order_by('-timestamp').first()
 
-            data.append({
-                'id': u,
-                'freelancerName': profile.user.username,
-                'freelancerAvatar': profile.user.username[0].upper(),
-                'lastMessage': last_msg.content if last_msg else 'No messages yet',
-                'unread': Message.objects.filter(receiver=request.user, sender=u, is_read=False).count()
-            })
-        except UserProfile.DoesNotExist:
-            continue
+                data.append({
+                    'id': u,
+                    'freelancerName': profile.user.username,
+                    'freelancerAvatar': profile.user.username[0].upper(),
+                    'lastMessage': last_msg.message if last_msg else 'No messages yet',
+                    'unread': Message.objects.filter(receiver=request.user, sender=u, is_read=False).count()
+                })
+            except UserProfile.DoesNotExist:
+                continue
 
-    return Response(data)
+        return Response(data)
+    except ImportError:
+        return Response({'error': 'Chat functionality not available'}, status=500)
 
 
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def chat_messages(request, convo_id):
-    if request.method == 'GET':
-        msgs = Message.objects.filter(
-            models.Q(sender=request.user, receiver_id=convo_id) |
-            models.Q(sender_id=convo_id, receiver=request.user)
-        ).order_by('timestamp')
+    """Chat messages - UPDATED to use chating app"""
+    try:
+        from chating.models import Message
+        
+        if request.method == 'GET':
+            msgs = Message.objects.filter(
+                models.Q(sender=request.user, receiver_id=convo_id) |
+                models.Q(sender_id=convo_id, receiver=request.user)
+            ).order_by('timestamp')
 
-        data = [{
-            'id': m.id,
-            'conversationId': convo_id,
-            'sender': 'You' if m.sender == request.user else m.sender.username,
-            'text': m.content,
-            'timestamp': m.timestamp.strftime('%I:%M %p')
-        } for m in msgs]
-        return Response(data)
+            data = [{
+                'id': m.id,
+                'conversationId': convo_id,
+                'sender': 'You' if m.sender == request.user else m.sender.username,
+                'text': m.message,
+                'timestamp': m.timestamp.strftime('%I:%M %p')
+            } for m in msgs]
+            return Response(data)
 
-    elif request.method == 'POST':
-        content = request.data.get('text', '').strip()
-        if not content:
-            return Response({'error': 'Message cannot be empty'}, status=400)
+        elif request.method == 'POST':
+            content = request.data.get('text', '').strip()
+            if not content:
+                return Response({'error': 'Message cannot be empty'}, status=400)
 
-        msg = Message.objects.create(
-            sender=request.user,
-            receiver_id=convo_id,
-            content=content
-        )
-        return Response({
-            'id': msg.id,
-            'conversationId': convo_id,
-            'sender': 'You',
-            'text': content,
-            'timestamp': msg.timestamp.strftime('%I:%M %p')
-        }, status=201)
+            msg = Message.objects.create(
+                sender=request.user,
+                receiver_id=convo_id,
+                message=content
+            )
+            return Response({
+                'id': msg.id,
+                'conversationId': convo_id,
+                'sender': 'You',
+                'text': content,
+                'timestamp': msg.timestamp.strftime('%I:%M %p')
+            }, status=201)
+            
+    except ImportError:
+        return Response({'error': 'Chat functionality not available'}, status=500)
 
 
 @api_view(['GET', 'POST'])
@@ -589,82 +609,41 @@ def user_orders(request):
             'service': b.service.titleOverview,
             'provider': b.freelancer.username,
             'status': b.status.lower(),
-            'date': b.preferred_date.strftime('%Y-%m-%d'),
+            'date': b.booking_date.strftime('%Y-%m-%d'),
             'amount': float(b.total_amount),
         })
     return Response(data)
 
 
 
+# In services/views.py - Simplified create_booking
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_booking(request):
-    """API endpoint to create a booking"""
-    print("🔍 DEBUG: ======= CREATE BOOKING CALLED =======")
-    print(f"🔍 DEBUG: User: {request.user.username}")
-    print(f"🔍 DEBUG: Request data: {request.data}")
-    
+    """API endpoint to create a booking - USE ONLY EXISTING FIELDS"""
     try:
         overview_id = request.data.get('overview')
         package_id = request.data.get('package')
         preferred_date = request.data.get('preferred_date')
         message = request.data.get('message', '')
-        
-        print(f"🔍 DEBUG: overview_id: {overview_id}, package_id: {package_id}")
-        print(f"🔍 DEBUG: preferred_date: {preferred_date}")
 
-        # Validate required fields
-        if not overview_id or not package_id:
-            print("🔍 DEBUG: Missing overview or package ID")
-            return Response({'error': 'Missing overview or package ID'}, status=400)
+        # Validate
+        if not overview_id or not package_id or not preferred_date:
+            return Response({'error': 'Missing required fields'}, status=400)
 
-        if not preferred_date:
-            print("🔍 DEBUG: No date provided")
-            return Response({'error': 'Please select a date'}, status=400)
+        # Get objects
+        overview = Overview.objects.get(id=overview_id)
+        package = Package.objects.get(id=package_id, overview=overview)
 
-        # Get the service and package
-        try:
-            overview = Overview.objects.get(id=overview_id)
-            package = Package.objects.get(id=package_id, overview=overview)
-            print(f"🔍 DEBUG: Found service: {overview.titleOverview}")
-            print(f"🔍 DEBUG: Found package: {package.title}")
-            print(f"🔍 DEBUG: Service owner (freelancer): {overview.user.username}")
-        except Overview.DoesNotExist:
-            print(f"🔍 DEBUG: Overview {overview_id} not found")
-            return Response({'error': 'Service not found'}, status=404)
-        except Package.DoesNotExist:
-            print(f"🔍 DEBUG: Package {package_id} not found for service {overview_id}")
-            return Response({'error': 'Package not found'}, status=404)
-        
-        # BULLETPROOF PHONE — WORKS 100% ALWAYS
-        try:
-             customer_phone = request.user.userprofile.phone
-        except AttributeError:
-           customer_phone = "9800000000"   # no profile → use default
-        if not customer_phone:
-          customer_phone = "9800000000"   # profile exists but phone empty → default
-
-        # Create booking
+        # Create booking with ONLY fields that exist
         booking = Booking.objects.create(
-            customer=request.user,
-            freelancer=overview.user,  # Critical: set the freelancer!
-            service=overview,
-            package_type=package.package_type,
-            booking_date=preferred_date,
-            booking_time="12:00:00",  # Default time
-            customer_name=request.user.get_full_name() or request.user.username,
-            customer_phone=customer_phone,
+            buyer=request.user,
+            overview=overview,
+            package=package,
+            preferred_date=preferred_date,
             message=message,
-            total_amount=package.price,
             status='pending'
         )
-        
-        print(f"🔍 DEBUG: ✅ Booking created successfully! ID: {booking.id}")
-        print(f"🔍 DEBUG: Customer: {booking.customer.username}")
-        print(f"🔍 DEBUG: Freelancer: {booking.freelancer.username}")
-        print(f"🔍 DEBUG: Service: {booking.service.titleOverview}")
-        print(f"🔍 DEBUG: Amount: {booking.total_amount}")
-        print(f"🔍 DEBUG: Status: {booking.status}")
 
         return Response({
             'status': 'booked', 
@@ -673,52 +652,17 @@ def create_booking(request):
         })
         
     except Exception as e:
-        print(f"🔍 DEBUG: ❌ Booking creation failed: {str(e)}")
-        import traceback
-        print(f"🔍 DEBUG: Traceback: {traceback.format_exc()}")
         return Response({'error': f'Booking failed: {str(e)}'}, status=500)
-          
-    
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def seller_bookings_api(request):
-    if not hasattr(request.user, 'userprofile') or request.user.userprofile.role != 'freelancer':
-        return Response({'error': 'Access denied'}, status=403)
-
-    # FIX: Use freelancer field
-    bookings = Booking.objects.filter(freelancer=request.user).select_related(
-        'customer', 'service'
-    ).order_by('-created_at')
-
-    data = []
-    for b in bookings:
-        data.append({
-            'id': b.id,
-            'customer': b.customer.username,  # Changed from buyer
-            'customer_avatar': b.customer.username[0].upper(),
-            'service': b.service.titleOverview,  # Changed from overview
-            'package': b.package_type.title(),  # Direct field
-            'price': float(b.total_amount),  # Changed from package.price
-            'date': b.booking_date.strftime('%Y-%m-%d'),
-            'time': b.booking_time.strftime('%H:%M'),
-            'status': b.status,
-            'message': b.message or ''
-        })
-
-    return Response(data)
-
-
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def initiate_esewa_payment(request):
     booking_id = request.data.get('booking_id')
     try:
-        booking = Booking.objects.get(id=booking_id, buyer=request.user, status='pending')
+        booking = Booking.objects.get(id=booking_id, customer=request.user, status='pending')
     except Booking.DoesNotExist:
         return Response({'error': 'Invalid booking'}, status=400)
 
-    amount = float(booking.package.price)
+    amount = float(booking.total_amount)
     transaction_uuid = str(uuid.uuid4())
     product_code = "EPAYTEST" if settings.ESEWA_TEST_MODE else settings.ESEWA_MERCHANT_ID
 
@@ -765,8 +709,8 @@ def esewa_success(request):
         booking.save()
 
         # SMS to both
-        send_sms(booking.buyer.userprofile.phone, f"Payment successful! Booking #{booking.id}")
-        send_sms(booking.overview.user.userprofile.phone, f"New paid booking from {booking.buyer.username}")
+        send_sms(booking.customer.userprofile.phone, f"Payment successful! Booking #{booking.id}")
+        send_sms(booking.service.user.userprofile.phone, f"New paid booking from {booking.customer.username}")
 
         return redirect(f"http://localhost:5173/booking/confirm?success=true&booking={booking.id}")
     except:
@@ -791,7 +735,7 @@ def esewa_failure(request):
 #         return Response({'error': 'Minimum Rs. 500'}, status=400)
 
 #     # Check earnings (simplified)
-#     total_earned = Booking.objects.filter(overview__user=request.user, status='completed').aggregate(
+#     total_earned = Booking.objects.filter(service__user=request.user, status='completed').aggregate(
 #         total=Sum('package__price')
 #     )['total'] or 0
 
@@ -838,72 +782,63 @@ def profile_view(request):
 @permission_classes([IsAuthenticated])
 def seller_bookings_api(request):
     """API endpoint for freelancers to view their bookings"""
-    print("🔍 DEBUG: ======= SELLER BOOKINGS API CALLED =======")
-    print(f"🔍 DEBUG: User: {request.user.username}")
+    print("🔍 SELLER BOOKINGS API CALLED")
     
     try:
-        # Check user profile and role
+        # Check if user is a freelancer/seller
         if not hasattr(request.user, 'userprofile'):
-            print("🔍 DEBUG: ERROR - User has no profile")
             return Response({'error': 'User profile not found'}, status=403)
         
         profile = request.user.userprofile
-        print(f"🔍 DEBUG: User role: {profile.role}")
         
         if profile.role not in ['freelancer', 'seller']:
-            print(f"🔍 DEBUG: ERROR - Wrong role: {profile.role}")
             return Response({'error': 'Access denied - freelancers only'}, status=403)
 
-        # Get bookings for this freelancer
-        print(f"🔍 DEBUG: Fetching bookings for freelancer: {request.user.username}")
-        bookings = Booking.objects.filter(freelancer=request.user).select_related(
-            'customer', 'service'
+        # FIXED: Use only existing fields
+        bookings = Booking.objects.filter(overview__user=request.user).select_related(
+            'buyer', 'overview', 'package'
         ).order_by('-created_at')
         
-        print(f"🔍 DEBUG: Found {bookings.count()} bookings in database")
-        
+        print(f"🔍 Found {bookings.count()} bookings for {request.user.username}")
+
         data = []
         for booking in bookings:
-            print(f"🔍 DEBUG: Processing booking {booking.id}")
             booking_data = {
                 'id': booking.id,
-                'customer': booking.customer.username,
-                'customer_avatar': booking.customer.username[0].upper(),
-                'service': booking.service.titleOverview,
-                'package': booking.package_type.title(),
-                'price': float(booking.total_amount),
-                'date': booking.booking_date.strftime('%Y-%m-%d'),                'time': booking.booking_time.strftime('%H:%M'),
+                'customer': booking.buyer.username,  # Use buyer.username
+                'customer_avatar': booking.buyer.username[0].upper(),
+                'service': booking.overview.titleOverview,
+                'package': booking.package.package_type.title() if booking.package else 'Basic',
+                'price': float(booking.package.price) if booking.package else 0.0,  # Use package.price
+                'date': booking.preferred_date.strftime('%Y-%m-%d') if booking.preferred_date else '',
                 'status': booking.status,
                 'message': booking.message or ''
             }
             data.append(booking_data)
-            print(f"🔍 DEBUG: Added booking: {booking.customer.username} -> {booking.service.titleOverview}")
 
-        print(f"🔍 DEBUG: ✅ Returning {len(data)} bookings")
         return Response(data)
         
     except Exception as e:
-        print(f"🔍 DEBUG: ❌ ERROR in seller_bookings_api: {str(e)}")
-        import traceback
-        print(f"🔍 DEBUG: Traceback: {traceback.format_exc()}")
-        return Response({'error': f'Server error: {str(e)}'}, status=500)
-    
-    
+        print(f"❌ ERROR in seller_bookings_api: {str(e)}")
+        return Response({'error': str(e)}, status=500)        
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def update_booking_status_api(request, booking_id):
     """API endpoint to update booking status"""
     try:
-        booking = Booking.objects.get(id=booking_id, freelancer=request.user)
+        # FIXED: Filter by overview__user instead of freelancer
+        booking = Booking.objects.get(id=booking_id, overview__user=request.user)
         new_status = request.data.get('status')
         
         if new_status in ['confirmed', 'completed', 'rejected']:
             booking.status = new_status
             booking.save()
             
-            # Send SMS notification
+            # Send SMS notification (if you have this functionality)
             try:
-                send_sms(booking.customer_phone, f"Your booking status updated to {new_status}")
+                # You might need to add a phone field to your models
+                # send_sms(booking.buyer.userprofile.phone, f"Your booking status updated to {new_status}")
+                pass
             except:
                 pass
                 
@@ -914,9 +849,7 @@ def update_booking_status_api(request, booking_id):
     except Booking.DoesNotExist:
         return Response({'error': 'Booking not found'}, status=404)
     except Exception as e:
-        return Response({'error': str(e)}, status=500)    
-    
-    
+        return Response({'error': str(e)}, status=500)
     
 User = get_user_model()
 @api_view(['GET'])
@@ -945,4 +878,7 @@ def admin_stats_api(request):
         },
         'recentUsers': recent_users,
         'recentBookings': recent_bookings,
-    })    
+    })
+    
+    
+    

@@ -41,7 +41,7 @@ urlpatterns = [
     path('api/auth/profile/', profile_view, name='profile'),
     
     # === BOOKINGS ===
-    path('api/bookings/', include('bookings.urls')),
+    # path('api/bookings/', include('bookings.urls')),
 
     # === HOME ===
     path('', include('Home.urls')),

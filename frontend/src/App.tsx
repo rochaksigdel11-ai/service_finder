@@ -60,8 +60,8 @@ function App() {
             {/* Chat */}
             <Route path="/chat" element={<ChatPage />} />
             
-            <Route path="/chat/:id" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
-
+            <Route path="/chat/conversation/:conversationId" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+ 
             {/* Freelancer/Seller */}
             <Route
               path="/seller/dashboard"

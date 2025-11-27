@@ -2,15 +2,16 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from services.models import Booking, Message  # Make sure this import is correct
 from django.contrib.auth import get_user_model
+from .models import Message
+from Orders.models import Order
 
 User = get_user_model()
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.booking_id = self.scope['url_route']['kwargs']['booking_id']
-        self.room_group_name = f'chat_{self.booking_id}'
+        self.order_id = self.scope['url_route']['kwargs']['order_id']
+        self.room_group_name = f'chat_{self.order_id}'
 
         # Join room group
         await self.channel_layer.group_add(
@@ -26,13 +27,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
 
-    # Receive message from WebSocket (from frontend)
     async def receive(self, text_data):
         data = json.loads(text_data)
         message_text = data['message']
         user = self.scope["user"]
 
         if user.is_anonymous:
+            await self.close()
             return
 
         # Save message to database
@@ -52,7 +53,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             }
         )
 
-    # Receive message from room group (send to WebSocket)
     async def chat_message(self, event):
         await self.send(text_data=json.dumps({
             'message': event['message'],
@@ -63,15 +63,20 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def save_message(self, user, text):
         try:
-            booking = Booking.objects.get(id=self.booking_id)
-            # Determine who is the receiver
-            receiver = booking.freelancer if user == booking.customer else booking.customer
+            order = Order.objects.get(id=self.order_id)
+            
+            # Determine receiver based on who sent the message
+            if user == order.buyer:
+                receiver = order.seller
+            else:
+                receiver = order.buyer
             
             return Message.objects.create(
-                booking=booking,
                 sender=user,
                 receiver=receiver,
-                content=text
+                order=order,
+                service=order.service,
+                message=text
             )
-        except Booking.DoesNotExist:
+        except Order.DoesNotExist:
             return None

@@ -1,3 +1,4 @@
+# backend/chating/models.py
 from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import User
@@ -8,22 +9,33 @@ class Message(models.Model):
     sender = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='messages_sent'
+        related_name='chat_messages_sent'  # Changed from 'messages_sent'
     )
     receiver = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='messages_received'
+        related_name='chat_messages_received'  # Changed from 'messages_received'
     )
-    service = models.ForeignKey(Overview, related_name='service_profile', on_delete=models.CASCADE, null=True, blank=True)
-    order = models.ForeignKey(Order, related_name='order_of_user',on_delete=models.CASCADE)
+    service = models.ForeignKey(
+        Overview, 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True,
+        related_name='chat_messages'  # Added unique related_name
+    )
+    order = models.ForeignKey(
+        Order, 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True,
+        related_name='chat_messages'  # Added unique related_name
+    )
     message = models.TextField()
-    status = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
-    image = models.ImageField(upload_to='message_images/', null=True, blank=True)
-    video = models.FileField(upload_to='message_videos/', null=True, blank=True)
+    is_read = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ['timestamp']
     
     def __str__(self):
-        return f"{self.sender} → {self.receiver}"
-
-    
+        return f"{self.sender} → {self.receiver}: {self.message[:50]}"
