@@ -24,11 +24,17 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from rest_framework.permissions import IsAdminUser
 from django.db.models import Sum
+from django.db import models as db_models
+# ────── CHAT MESSAGE MODEL (FROM CHATING APP) ──────
+try:
+    from chating.models import Message
+except ImportError:
+    Message = None  # Fallback if chating app not installed
 
 # Local Models
 from .models import (
     Overview, Package, Description, Question,
-    Gallery, RatingService, Booking, Payout
+    Gallery, Review, Booking, Payout
     # REMOVED: Message - using chating app instead
 )
 
@@ -283,41 +289,8 @@ def book_service(request, overview_id):
     return render(request, 'services/book.html', context)
 
 
-# ────── CHAT ──────
-@login_required
-def chat_view(request, overview_id):
-    """Template-based chat view - UPDATED to use chating app"""
-    overview = get_object_or_404(Overview, id=overview_id)
-    
-    # Try to import from chating app
-    try:
-        from chating.models import Message
-        other_user = overview.user if request.user != overview.user else Booking.objects.filter(service=overview).first().customer
-        messages = Message.objects.filter(service=overview).order_by('timestamp')
-    except ImportError:
-        # Fallback if chating app not available
-        messages = []
-        other_user = overview.user
 
-    if request.method == 'POST':
-        content = request.POST.get('content')
-        try:
-            from chating.models import Message
-            Message.objects.create(
-                sender=request.user,
-                receiver=other_user,
-                service=overview,
-                message=content
-            )
-        except ImportError:
-            messages.error(request, "Chat functionality not available")
-        return redirect('chat_view', overview_id)
 
-    return render(request, 'services/chat.html', {
-        'overview': overview,
-        'other_user': other_user,
-        'messages': messages
-    })
 
 
 # ────── VIEW SERVICE + RATINGS ──────
@@ -333,7 +306,7 @@ def view_service_profile(request, overview_id):
     description = Description.objects.filter(overview=overview).first()
     questions = Question.objects.filter(overview=overview)
     gallery = Gallery.objects.filter(overview=overview).first()
-    ratings = RatingService.objects.filter(overview=overview)
+    ratings = Review.objects.filter(overview=overview)
 
     if ratings.exists():
         from django.db.models import Avg
@@ -354,11 +327,11 @@ def view_service_profile(request, overview_id):
         if not (0.5 <= float(rating_value) <= 5.0):
             return JsonResponse({'error': 'Invalid rating.'}, status=400)
 
-        recent = RatingService.objects.filter(ip_address=ip, created_at__gte=timezone.now() - timedelta(hours=1)).count()
+        recent = Review.objects.filter(ip_address=ip, created_at__gte=timezone.now() - timedelta(hours=1)).count()
         if recent > 3 or len(review_text) < 10:
             return JsonResponse({'error': 'Review blocked.'}, status=400)
 
-        RatingService.objects.update_or_create(
+        Review.objects.update_or_create(
             overview=overview, reviewer=reviewer_profile,
             defaults={'review_rating': rating_value, 'title': title, 'review': review_text, 'ip_address': ip}
         )
@@ -459,89 +432,12 @@ def get_profile(request):
         return Response({'role': 'customer'})
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def chat_conversations(request):
-    """Get chat conversations - UPDATED to use chating app"""
-    try:
-        from chating.models import Message
-        sent = Message.objects.filter(sender=request.user).values_list('receiver', flat=True).distinct()
-        received = Message.objects.filter(receiver=request.user).values_list('sender', flat=True).distinct()
-        users = set(sent) | set(received)
-
-        data = []
-        for u in users:
-            try:
-                profile = UserProfile.objects.get(user=u)
-                last_msg = Message.objects.filter(
-                    models.Q(sender=request.user, receiver=u) |
-                    models.Q(sender=u, receiver=request.user)
-                ).order_by('-timestamp').first()
-
-                data.append({
-                    'id': u,
-                    'freelancerName': profile.user.username,
-                    'freelancerAvatar': profile.user.username[0].upper(),
-                    'lastMessage': last_msg.message if last_msg else 'No messages yet',
-                    'unread': Message.objects.filter(receiver=request.user, sender=u, is_read=False).count()
-                })
-            except UserProfile.DoesNotExist:
-                continue
-
-        return Response(data)
-    except ImportError:
-        return Response({'error': 'Chat functionality not available'}, status=500)
-
-
-@api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated])
-def chat_messages(request, convo_id):
-    """Chat messages - UPDATED to use chating app"""
-    try:
-        from chating.models import Message
-        
-        if request.method == 'GET':
-            msgs = Message.objects.filter(
-                models.Q(sender=request.user, receiver_id=convo_id) |
-                models.Q(sender_id=convo_id, receiver=request.user)
-            ).order_by('timestamp')
-
-            data = [{
-                'id': m.id,
-                'conversationId': convo_id,
-                'sender': 'You' if m.sender == request.user else m.sender.username,
-                'text': m.message,
-                'timestamp': m.timestamp.strftime('%I:%M %p')
-            } for m in msgs]
-            return Response(data)
-
-        elif request.method == 'POST':
-            content = request.data.get('text', '').strip()
-            if not content:
-                return Response({'error': 'Message cannot be empty'}, status=400)
-
-            msg = Message.objects.create(
-                sender=request.user,
-                receiver_id=convo_id,
-                message=content
-            )
-            return Response({
-                'id': msg.id,
-                'conversationId': convo_id,
-                'sender': 'You',
-                'text': content,
-                'timestamp': msg.timestamp.strftime('%I:%M %p')
-            }, status=201)
-            
-    except ImportError:
-        return Response({'error': 'Chat functionality not available'}, status=500)
-
 
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def service_reviews(request, service_id):
     if request.method == 'GET':
-        ratings = RatingService.objects.filter(overview_id=service_id)
+        ratings = Review.objects.filter(overview_id=service_id)
         data = [{
             'id': r.id,
             'clientName': r.reviewer.user.username,
@@ -552,7 +448,7 @@ def service_reviews(request, service_id):
         return Response(data)
 
     if request.method == 'POST':
-        RatingService.objects.create(
+        Review.objects.create(
             overview_id=service_id,
             reviewer=request.user.userprofile,
             review_rating=request.data['rating'],
@@ -776,25 +672,19 @@ def profile_view(request):
     }
     return Response(data)    
 
-
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def seller_bookings_api(request):
     """API endpoint for freelancers to view their bookings"""
     print("🔍 SELLER BOOKINGS API CALLED")
+    print(f"🔍 User: {request.user.username}, Role: {request.user.role}")
     
     try:
-        # Check if user is a freelancer/seller
-        if not hasattr(request.user, 'userprofile'):
-            return Response({'error': 'User profile not found'}, status=403)
-        
-        profile = request.user.userprofile
-        
-        if profile.role not in ['freelancer', 'seller']:
-            return Response({'error': 'Access denied - freelancers only'}, status=403)
+        # ✅ FIXED: Check role directly from custom User model
+        if request.user.role not in ['seller', 'freelancer']:
+            return Response({'error': 'Access denied - sellers/freelancers only'}, status=403)
 
-        # FIXED: Use only existing fields
+        # Get bookings where the current user is the service provider
         bookings = Booking.objects.filter(overview__user=request.user).select_related(
             'buyer', 'overview', 'package'
         ).order_by('-created_at')
@@ -805,11 +695,11 @@ def seller_bookings_api(request):
         for booking in bookings:
             booking_data = {
                 'id': booking.id,
-                'customer': booking.buyer.username,  # Use buyer.username
+                'customer': booking.buyer.username,
                 'customer_avatar': booking.buyer.username[0].upper(),
                 'service': booking.overview.titleOverview,
                 'package': booking.package.package_type.title() if booking.package else 'Basic',
-                'price': float(booking.package.price) if booking.package else 0.0,  # Use package.price
+                'price': float(booking.package.price) if booking.package else 0.0,
                 'date': booking.preferred_date.strftime('%Y-%m-%d') if booking.preferred_date else '',
                 'status': booking.status,
                 'message': booking.message or ''
@@ -820,7 +710,10 @@ def seller_bookings_api(request):
         
     except Exception as e:
         print(f"❌ ERROR in seller_bookings_api: {str(e)}")
-        return Response({'error': str(e)}, status=500)        
+        import traceback
+        traceback.print_exc()
+        return Response({'error': str(e)}, status=500)
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def update_booking_status_api(request, booking_id):
@@ -881,4 +774,86 @@ def admin_stats_api(request):
     })
     
     
-    
+
+
+# ────── REAL-TIME CHAT API — FINAL WORKING VERSION ──────
+from django.db.models import Q
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_conversations(request):
+    # SAFE IMPORT
+    try:
+        from chating.models import Message
+    except ImportError:
+        return Response([])
+
+    from django.db.models import Q
+
+    # TRY ALL POSSIBLE FIELD NAMES — ONE WILL WORK
+    try:
+        bookings = Booking.objects.filter(
+            Q(buyer=request.user) | 
+            Q(freelancer=request.user) |
+            Q(service__user=request.user) |
+            Q(overview__user=request.user)
+        )
+    except Exception as e:
+        print("Booking field error:", e)
+        return Response({"error": "Booking model field not found"}, status=500)
+
+    bookings = bookings.select_related('buyer', 'freelancer', 'service__user', 'overview__user').distinct()
+
+    data = []
+    for b in bookings:
+        # Determine the other user
+        if hasattr(b, 'buyer') and b.buyer == request.user:
+            other = b.freelancer or getattr(b, 'service__user', None) or getattr(b, 'overview__user', None)
+        else:
+            other = b.buyer
+
+        if not other:
+            continue
+
+        last_msg = Message.objects.filter(booking=b).order_by('-timestamp').first() if Message else None
+
+        data.append({
+            'id': b.id,
+            'freelancerName': other.get_full_name() or other.username,
+            'freelancerAvatar': other.username[0].upper(),
+            'lastMessage': last_msg.content if last_msg else "Start chatting...",
+            'unread': Message.objects.filter(booking=b, receiver=request.user, is_read=False).count() if Message else 0
+        })
+
+    return Response(data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_messages(request, booking_id):
+    try:
+        from chating.models import Message
+    except ImportError:
+        return Response([])
+
+    try:
+        booking = Booking.objects.get(id=booking_id)
+        # Simple check — if user is in booking, allow
+        user_in_booking = (
+            booking.buyer == request.user or 
+            getattr(booking, 'freelancer', None) == request.user or
+            getattr(booking, 'service__user', None) == request.user or
+            getattr(booking, 'overview__user', None) == request.user
+        )
+        if not user_in_booking:
+            return Response({'error': 'Access denied'}, status=403)
+
+        messages = Message.objects.filter(booking=booking).order_by('timestamp')
+        return Response([{
+            'id': m.id,
+            'sender': 'You' if m.sender == request.user else m.sender.username,
+            'text': m.content,
+            'timestamp': m.timestamp.strftime('%I:%M %p')
+        } for m in messages])
+
+    except Booking.DoesNotExist:
+        return Response({'error': 'Booking not found'}, status=404)

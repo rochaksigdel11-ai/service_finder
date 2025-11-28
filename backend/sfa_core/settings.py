@@ -44,7 +44,7 @@ INSTALLED_APPS = [
     'chating',
     'core',
     'payments',
-    'reviews',
+    
     'services',
     
      

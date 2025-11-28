@@ -1,4 +1,4 @@
-// src/pages/LoginPage.tsx — FINAL BEAUTIFUL + 100% WORKING
+// src/pages/LoginPage.tsx — FIXED TO MATCH AppContext
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
@@ -17,7 +17,8 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const tokenRes = await axios.post('http://127.0.0.1:8000/api/auth/token/', {
+      // Use the JWT create endpoint
+      const tokenRes = await axios.post('http://127.0.0.1:8000/api/auth/jwt/create/', {
         username,
         password,
       });
@@ -28,14 +29,15 @@ export default function LoginPage() {
 
       const profileRes = await axios.get('http://127.0.0.1:8000/api/auth/profile/');
 
-      const loggedInUser = {
+      // ✅ FIXED: Match EXACTLY what your AppContext expects
+      setUser({
+        id: profileRes.data.id,
         username: profileRes.data.username,
-        role: profileRes.data.role,
-        name: profileRes.data.full_name || profileRes.data.username,
-      };
+        email: profileRes.data.email || `${profileRes.data.username}@example.com`,
+        role: profileRes.data.role, // This should be 'customer' | 'seller' | 'admin'
+      });
 
-      setUser(loggedInUser);
-      notify(`Namaste, ${loggedInUser.username}!`, 'success');
+      notify(`Namaste, ${profileRes.data.username}!`, 'success');
 
       const role = profileRes.data.role.toLowerCase();
       if (role === 'seller' || role === 'freelancer') {
@@ -47,10 +49,17 @@ export default function LoginPage() {
       }
 
     } catch (err: any) {
-      const errorMsg = err.response?.data?.detail || 'Invalid username or password';
+      console.error('Login error:', err);
+      const errorMsg = err.response?.data?.detail || err.response?.data?.message || 'Invalid username or password';
       notify(errorMsg, 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleLogin();
     }
   };
 
@@ -70,6 +79,7 @@ export default function LoginPage() {
             placeholder="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            onKeyPress={handleKeyPress}
             className="w-full px-6 py-5 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-gray-300 text-lg focus:outline-none focus:ring-4 focus:ring-yellow-400 focus:border-yellow-400 transition"
           />
           <input
@@ -77,6 +87,7 @@ export default function LoginPage() {
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            onKeyPress={handleKeyPress}
             className="w-full px-6 py-5 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-gray-300 text-lg focus:outline-none focus:ring-4 focus:ring-yellow-400 focus:border-yellow-400 transition"
           />
           

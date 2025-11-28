@@ -19,6 +19,7 @@ import BookingConfirm from './pages/Bookingconfirm';
 import SellerBookings from './pages/SellerBookings';
 import BookingDetailPage from './pages/BookingDetailPage';
 import CustomerBookingsPage from './pages/CustomerBookingsPage'; // ← THIS WAS MISSING
+import ReviewPage from './pages/ReviewPage';
 
 const ProtectedRoute = ({ 
   children, 
@@ -89,6 +90,8 @@ function App() {
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
+
+          <Route path="/service/:serviceId/review" element={<ReviewPage />} />
           </Routes>
         </main>
 

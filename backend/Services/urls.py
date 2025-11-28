@@ -1,7 +1,9 @@
 from django.urls import path, include
 from . import views
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from .views import profile_api \
+from .views import profile_api 
+from accounts.views import profile_view
+    
 
 
 urlpatterns = [
@@ -17,12 +19,13 @@ urlpatterns = [
     path('api/seller/bookings/', views.seller_bookings_api, name='seller_bookings_api'),  # Seller
     
 
-    # === CHAT API ===
-    path('api/chat/conversations/', views.chat_conversations, name='chat_conversations'),
-    path('api/chat/messages/<int:convo_id>/', views.chat_messages, name='chat_messages'),
-
+    # REAL-TIME CHAT API — BOOKING-BASED (FINAL)
+    path('api/chat/conversations/', views.get_conversations, name='get_conversations'),
+    path('api/chat/messages/<int:booking_id>/', views.get_messages, name='get_messages'),
     # === REVIEWS API ===
     path('api/reviews/<int:service_id>/', views.service_reviews, name='service_reviews'),
+    path('api/auth/profile/', profile_view, name='profile'),  # This should exist
+
 
     # === JWT AUTH ===
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain'),

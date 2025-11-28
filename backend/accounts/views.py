@@ -59,25 +59,13 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 @permission_classes([IsAuthenticated])
 def profile_view(request):
     user = request.user
-    try:
-        profile = UserProfile.objects.get(user=user)
-        role = profile.role
-    except UserProfile.DoesNotExist:
-        # Auto create profile if missing
-        profile = UserProfile.objects.create(user=user, role='customer')
-        role = 'customer'
-
-    # FORCE CORRECT ROLE NAMES THAT FRONTEND EXPECTS
-    if user.username == 'admin' or user.is_superuser:
-        role = 'admin'
-    elif user.username == 'raju':
-        role = 'seller'
-
+    
+    # ✅ FIXED: Use your custom User model directly
     return Response({
         'id': user.id,
         'username': user.username,
         'email': user.email or '',
-        'role': role,                    # ← THIS MUST BE 'admin', 'seller', or 'customer'
-        'fullName': getattr(user, 'full_name', user.username),
+        'role': user.role,  # This comes from your custom User model
+        'fullName': user.full_name or user.username,
         'isAuthenticated': True
     })

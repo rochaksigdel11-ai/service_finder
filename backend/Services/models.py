@@ -1,13 +1,14 @@
-# Services/models.py
 from django.conf import settings
 from django.db import models
-from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
-from Home.models import UserProfile
+
 
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
-    def __str__(self): return self.name
+    
+    def __str__(self):
+        return self.name
+
 
 class Overview(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -26,10 +27,9 @@ class Overview(models.Model):
         super().save(*args, **kwargs)
 
     def update_rating(self):
-        from django.db.models import Avg
-        ratings = self.service_ratings.exclude(review_rating__isnull=True)
-        if ratings.exists():
-            avg = ratings.aggregate(avg=Avg('review_rating'))['avg']
+        reviews = self.reviews.all()
+        if reviews.exists():
+            avg = sum(review.rating for review in reviews) / reviews.count()
             self.overall_rating = round(avg, 2)
         else:
             self.overall_rating = 0.00
@@ -38,31 +38,55 @@ class Overview(models.Model):
     def __str__(self):
         return self.titleOverview
 
+
 class Package(models.Model):
-    PACKAGE_TYPE = [('basic', 'Basic'), ('standard', 'Standard'), ('premium', 'Premium')]
+    PACKAGE_TYPE = [
+        ('basic', 'Basic'),
+        ('standard', 'Standard'), 
+        ('premium', 'Premium')
+    ]
+    
     overview = models.ForeignKey(Overview, on_delete=models.CASCADE, related_name='packages')
     package_type = models.CharField(max_length=10, choices=PACKAGE_TYPE)
     title = models.CharField(max_length=100)
     description = models.TextField()
     delivery_time = models.PositiveIntegerField(help_text="Days")
-    revisions = models.CharField(max_length=20, choices=[(i, str(i)) for i in range(1, 10)] + [('unlimited', 'Unlimited')])
+    revisions = models.CharField(max_length=20)
     source_file = models.BooleanField(default=False)
     price = models.IntegerField(validators=[MinValueValidator(50)])
 
     class Meta:
         unique_together = ['overview', 'package_type']
+    
+    def __str__(self):
+        return f"{self.overview.titleOverview} - {self.package_type}"
+
 
 class Description(models.Model):
     overview = models.ForeignKey(Overview, on_delete=models.CASCADE, related_name='descriptions')
     description = models.TextField()
+    
+    def __str__(self):
+        return f"Description for {self.overview.titleOverview}"
+
 
 class Question(models.Model):
+    QUESTION_TYPES = [
+        ('text', 'Text'),
+        ('textarea', 'Textarea'), 
+        ('choices', 'Multiple Choice')
+    ]
+    
     overview = models.ForeignKey(Overview, on_delete=models.CASCADE, related_name='faqs')
     question_text = models.CharField(max_length=200)
-    question_type = models.CharField(max_length=20, choices=[('text', 'Text'), ('textarea', 'Textarea'), ('choices', 'Multiple Choice')], default='text')
+    question_type = models.CharField(max_length=20, choices=QUESTION_TYPES, default='text')
     answer_text = models.TextField(blank=True)
     choices = models.JSONField(default=list, blank=True)
     allow_multiple = models.BooleanField(default=False)
+    
+    def __str__(self):
+        return self.question_text
+
 
 class Gallery(models.Model):
     overview = models.ForeignKey(Overview, on_delete=models.CASCADE, related_name='gallery')
@@ -70,72 +94,69 @@ class Gallery(models.Model):
     image2 = models.ImageField(upload_to='gallery/', blank=True, null=True)
     image3 = models.ImageField(upload_to='gallery/', blank=True, null=True)
     video = models.FileField(upload_to='videos/', blank=True, null=True)
+    
+    def __str__(self):
+        return f"Gallery for {self.overview.titleOverview}"
 
-class RatingService(models.Model):
-    overview = models.ForeignKey(Overview, on_delete=models.CASCADE, related_name='service_ratings')
-    review_rating = models.DecimalField(max_digits=3, decimal_places=2, validators=[MinValueValidator(0.5), MaxValueValidator(5.0)])
-    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='service_ratings_given')
-    title = models.CharField(max_length=50)
-    review = models.TextField()
+
+class Review(models.Model):
+    service = models.ForeignKey(Overview, on_delete=models.CASCADE, related_name='reviews')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reviews')
+    rating = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="Rating from 1 to 5 stars"
+    )
+    comment = models.TextField(max_length=1000)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ['overview', 'reviewer']
+        unique_together = ['service', 'user']
+        ordering = ['-created_at']
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        self.overview.update_rating()
+        # Update the service's overall rating
+        self.service.update_rating()
 
-# In services/models.py - UPDATE YOUR BOOKING MODEL
-# In services/models.py - FINAL CLEAN BOOKING MODEL
+    def __str__(self):
+        return f"{self.user.username} - {self.rating} stars for {self.service.titleOverview}"
+
+
 class Booking(models.Model):
     STATUS_CHOICES = [
-        ('pending', 'Pending'), ('confirmed', 'Confirmed'),
-        ('completed', 'Completed'), ('cancelled', 'Cancelled'),
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('completed', 'Completed'), 
+        ('cancelled', 'Cancelled'),
     ]
     
-    # Core booking fields
     buyer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='service_bookings')
     overview = models.ForeignKey(Overview, on_delete=models.CASCADE, related_name='service_bookings_received')
     package = models.ForeignKey(Package, on_delete=models.SET_NULL, null=True, blank=True)
-    
-    # Date and communication
     preferred_date = models.DateField()
     message = models.TextField(blank=True)
-    
-    # Status and metadata
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    # Optional fields for compatibility - COMMENT THESE OUT FOR NOW
-    # customer_name = models.CharField(max_length=100, blank=True)
-    # customer_phone = models.CharField(max_length=15, blank=True)
-    # total_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-
     class Meta:
         ordering = ['-created_at']
-
-    # REMOVE THE save() METHOD TEMPORARILY
-    # def save(self, *args, **kwargs):
-    #     # Auto-populate fields
-    #     if not self.customer_name and self.buyer:
-    #         self.customer_name = self.buyer.get_full_name() or self.buyer.username
-    #     if not self.total_amount and self.package:
-    #         self.total_amount = self.package.price
-    #     super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.buyer.username} → {self.overview.titleOverview}"
 
     @property
     def freelancer(self):
-        """Get freelancer from overview relationship"""
         return self.overview.user
-    
+
+
 class Payout(models.Model):
     seller = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     esewa_id = models.CharField(max_length=20)
     status = models.CharField(max_length=20, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Payout ${self.amount} for {self.seller.username}"

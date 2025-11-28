@@ -1,4 +1,4 @@
-// frontend/src/context/AppContext.tsx — FIXED VERSION
+// frontend/src/context/AppContext.tsx — COMPLETE FIXED VERSION
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -6,7 +6,8 @@ interface User {
   id: number;
   username: string;
   email: string;
-  role: 'customer' | 'freelancer' | 'seller' | 'admin';
+  role: 'customer' | 'seller' | 'admin';
+  fullName?: string;
 }
 
 interface ToastState {
@@ -27,6 +28,7 @@ interface AppContextType {
   showRegister: boolean;
   setShowRegister: (v: boolean) => void;
   loading: boolean;
+  refreshToken: () => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -38,44 +40,76 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [showRegister, setShowRegister] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Axios configuration - SAME AS BOOKINGS PAGE
+  // Axios configuration
   axios.defaults.baseURL = 'http://127.0.0.1:8000';
 
-  // FETCH USER PROFILE - USING SAME LOGIC AS BOOKINGS PAGE
+  // Token refresh function
+  const refreshToken = async (): Promise<boolean> => {
+    try {
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (!refreshToken) return false;
+
+      const response = await axios.post('/api/auth/jwt/refresh/', {
+        refresh: refreshToken
+      });
+
+      const newAccessToken = response.data.access;
+      localStorage.setItem('access_token', newAccessToken);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`;
+      
+      console.log('Token refreshed successfully');
+      return true;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      return false;
+    }
+  };
+
+  // Fetch user profile with token refresh
   const fetchUserProfile = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      console.log('Fetching user profile, token exists:', !!token);
+      let token = localStorage.getItem('access_token');
       
       if (!token) {
         setLoading(false);
         return;
       }
 
-      // Set authorization header explicitly
-      const config = {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      };
+      // Set authorization header
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
-      const res = await axios.get('/api/profile/', config);
-      console.log('User profile fetched successfully:', res.data);
-      setUser(res.data);
+      try {
+        const res = await axios.get('/api/auth/profile/');
+        console.log('User profile fetched successfully:', res.data);
+        setUser(res.data);
+      } catch (error: any) {
+        if (error.response?.status === 401) {
+          // Token expired, try to refresh
+          const refreshed = await refreshToken();
+          if (refreshed) {
+            // Retry with new token
+            const retryRes = await axios.get('/api/auth/profile/');
+            setUser(retryRes.data);
+          } else {
+            throw new Error('Token refresh failed');
+          }
+        } else {
+          throw error;
+        }
+      }
     } catch (err: any) {
       console.error('Failed to fetch user profile:', err);
-      console.log('Error status:', err.response?.status);
-      console.log('Error data:', err.response?.data);
-      
-      // Clear invalid token
       localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
       setUser(null);
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch user on app startup - SAME AS BOOKINGS PAGE LOGIC
+  // Fetch user on app startup
   useEffect(() => {
     console.log('AppProvider initialized - checking authentication...');
     fetchUserProfile();
@@ -89,19 +123,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const login = async (username: string, password: string) => {
     try {
       console.log('Attempting login...');
-      const res = await axios.post('/api/token/', { username, password });
-      const token = res.data.access;
+      const res = await axios.post('/api/auth/jwt/create/', { 
+        username, 
+        password 
+      });
       
-      // Store token - SAME AS BOOKINGS PAGE
-      localStorage.setItem('access_token', token);
-      console.log('Login successful, token stored');
+      const { access, refresh } = res.data;
+      
+      // Store both tokens
+      localStorage.setItem('access_token', access);
+      localStorage.setItem('refresh_token', refresh);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${access}`;
+      
+      console.log('Login successful, tokens stored');
       
       // Fetch user profile after login
       await fetchUserProfile();
       notify('Login successful!', 'success');
     } catch (err: any) {
       console.error('Login failed:', err);
-      notify('Wrong username or password', 'error');
+      const errorMsg = err.response?.data?.detail || 'Wrong username or password';
+      notify(errorMsg, 'error');
       throw err;
     }
   };
@@ -110,6 +152,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     console.log('Logging out...');
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
+    delete axios.defaults.headers.common['Authorization'];
     setUser(null);
     notify('Logged out successfully', 'success');
   };
@@ -126,7 +169,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setShowLogin,
       showRegister,
       setShowRegister,
-      loading
+      loading,
+      refreshToken
     }}>
       {children}
       {/* TOAST UI */}
