@@ -1,4 +1,4 @@
-// src/pages/LoginPage.tsx — FIXED TO MATCH AppContext
+
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
@@ -17,7 +17,7 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      // Use the JWT create endpoint
+      
       const tokenRes = await axios.post('http://127.0.0.1:8000/api/auth/jwt/create/', {
         username,
         password,
@@ -29,7 +29,7 @@ export default function LoginPage() {
 
       const profileRes = await axios.get('http://127.0.0.1:8000/api/auth/profile/');
 
-      // ✅ FIXED: Match EXACTLY what your AppContext expects
+ 
       setUser({
         id: profileRes.data.id,
         username: profileRes.data.username,
@@ -68,7 +68,7 @@ export default function LoginPage() {
       <div className="bg-white/10 backdrop-blur-2xl rounded-3xl p-12 w-full max-w-lg shadow-2xl border border-white/20">
         <div className="text-center mb-12">
           <h1 className="text-6xl font-extrabold text-white mb-4 tracking-tight">
-            ServiceFinder <span className="text-yellow-400">Nepal</span>
+            ServiceFinder <span className="text-yellow-400">Application</span>
           </h1>
           <p className="text-2xl text-gray-200">Your trusted local service platform</p>
         </div>

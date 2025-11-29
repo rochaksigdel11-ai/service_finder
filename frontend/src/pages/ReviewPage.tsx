@@ -59,11 +59,12 @@ export default function ReviewsPage() {
         setLoading(true);
         
         // Fetch service details
-        const serviceResponse = await axios.get(`/api/services/${serviceId}/`);
+        const serviceResponse = await axios.get(`http://127.0.0.1:8000/api/services/${serviceId}/`);
         setService(serviceResponse.data);
         
         // Fetch reviews for this service
-        const reviewsResponse = await axios.get(`/api/services/${serviceId}/reviews/`);
+        const reviewsResponse = await axios.get(`http://127.0.0.1:8000/api/reviews/${serviceId}/`);
+
         setReviews(reviewsResponse.data.reviews || []);
         
       } catch (error: any) {

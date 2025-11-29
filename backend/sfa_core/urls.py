@@ -5,7 +5,7 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
-from django.views.generic import TemplateView
+# from django.views.generic import TemplateView
 from services.views import create_booking
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -29,10 +29,10 @@ urlpatterns = [
     path('api/payments/', include('payments.urls')),
     path('api/book/', create_booking, name='create_booking'),
 
-    # === WEB PAGES (Legacy HTML) ===
+   
     path('accounts/', include('accounts.urls')),
     path('dashboard/', include('UserDashboard.urls')),
-    path('chat/', include('chating.urls')),
+    # path('', include('chating.urls')),
     
     # === JWT AUTH ===
     path('api/auth/jwt/create/', TokenObtainPairView.as_view(), name='jwt-create'),

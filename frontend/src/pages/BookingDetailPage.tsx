@@ -1,4 +1,4 @@
-// src/pages/BookingDetailPage.tsx — FINAL & PERFECT
+
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
@@ -22,7 +22,7 @@ export default function BookingDetailPage() {
     };
     fetchBooking();
 
-    // Real-time refresh every 10 seconds
+   
     const interval = setInterval(fetchBooking, 10000);
     return () => clearInterval(interval);
   }, [id]);

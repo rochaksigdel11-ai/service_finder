@@ -20,7 +20,7 @@ export default function ServicesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
-// In ServicesPage.tsx - Fix the notification type
+
 useEffect(() => {
   const fetchServices = async () => {
     try {
@@ -33,7 +33,7 @@ useEffect(() => {
         throw new Error("No real data");
       }
     } catch (err) {
-      // ✅ FIXED: Changed "info" to "success"
+     
       notify('Showing demo services', 'success');
       setServices([
         { id: 1, titleOverview: "Professional React + Django Full Stack Website", provider: "raju", overall_rating: 4.9, distance_km: 2.4 },

@@ -43,43 +43,54 @@ class MessageSerializer:
             'is_read': message.is_read
         }
 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_conversations(request):
-    """Get all conversations for the current user"""
     user = request.user
-    
-    # Get all orders where user is either buyer or seller
-    orders = Order.objects.filter(
-        Q(buyer=user) | Q(seller=user)
-    ).distinct()
-    
     conversations = []
-    for order in orders:
-        # Get last message in this conversation
-        last_message = Message.objects.filter(order=order).order_by('-timestamp').first()
-        
-        # Determine the other user in conversation
-        if user == order.buyer:
-            other_user = order.seller
-        else:
-            other_user = order.buyer
-        
-        conversations.append({
-            'id': order.id,  # Using order ID as conversation ID
-            'order_id': order.id,
-            'service_title': order.service.titleOverview if order.service else 'Service',
-            'other_user_name': other_user.username,
-            'other_user_avatar': other_user.username[0].upper(),  # First letter as avatar
-            'last_message': last_message.message if last_message else 'No messages yet',
-            'unread_count': Message.objects.filter(order=order, receiver=user, is_read=False).count(),
-            'timestamp': last_message.timestamp if last_message else order.created_at
-        })
+
+    try:
+        # Get all orders where user is part of (as buyer or seller)
+        orders = Order.objects.filter(
+            Q(buyer=user) | Q(seller=user)
+        ).select_related('service', 'buyer', 'seller')
+
+        for order in orders:
+            try:
+                # Who is the other person?
+                other_user = order.seller if user == order.buyer else order.buyer
+                if not other_user:
+                    continue
+
+                # Safe service title
+                service_title = "Service Chat"
+                if order.service and hasattr(order.service, 'titleOverview'):
+                    service_title = order.service.titleOverview or "Service Chat"
+
+                # CORRECT: use 'order=', NOT 'booking='
+                last_msg = Message.objects.filter(order=order).order_by('-timestamp').first()
+
+                conversations.append({
+                    "id": order.id,
+                    "freelancerName": other_user.username,
+                    "freelancerAvatar": other_user.username[0].upper(),
+                    "lastMessage": last_msg.message if last_msg else "No messages yet",
+                    "unread": Message.objects.filter(order=order, receiver=user, is_read=False).count(),
+                    "serviceName": service_title
+                })
+            except Exception as e:
+                print(f"Skipped order {order.id}: {e}")
+                continue
+
+        return Response(conversations)
+
+    except Exception as e:
+        print("ERROR in get_conversations:", e)
+        import traceback
+        traceback.print_exc()
+        return Response([], status=200)
     
-    # Sort by last message timestamp
-    conversations.sort(key=lambda x: x['timestamp'], reverse=True)
-    
-    return Response(conversations)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -106,29 +117,25 @@ def get_messages(request, order_id):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def send_message(request):
-    """Send a new message"""
+def send_message(request, order_id=None):
     user = request.user
-    order_id = request.data.get('order_id')
-    message_text = request.data.get('message')
+    
+    # Support both: /send/ and /messages/<id>/
+    if order_id is None:
+        order_id = request.data.get('order_id')
+    
+    message_text = request.data.get('text') or request.data.get('message')
     
     if not order_id or not message_text:
-        return Response({'error': 'Order ID and message are required'}, status=400)
-    
+        return Response({'error': 'Missing data'}, status=400)
+
     try:
         order = Order.objects.get(id=order_id)
-        
-        # Check if user is part of this order
         if user not in [order.buyer, order.seller]:
             return Response({'error': 'Access denied'}, status=403)
-        
-        # Determine receiver
-        if user == order.buyer:
-            receiver = order.seller
-        else:
-            receiver = order.buyer
-        
-        # Create message
+
+        receiver = order.seller if user == order.buyer else order.buyer
+
         message = Message.objects.create(
             sender=user,
             receiver=receiver,
@@ -136,10 +143,14 @@ def send_message(request):
             service=order.service,
             message=message_text
         )
-        
-        serializer = MessageSerializer(message)
-        return Response(serializer.data)
-        
+
+        return Response({
+            'id': message.id,
+            'sender': 'You',
+            'text': message.message,
+            'timestamp': message.timestamp.strftime("%H:%M")
+        })
+
     except Order.DoesNotExist:
         return Response({'error': 'Order not found'}, status=404)
 

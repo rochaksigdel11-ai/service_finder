@@ -20,6 +20,7 @@ import SellerBookings from './pages/SellerBookings';
 import BookingDetailPage from './pages/BookingDetailPage';
 import CustomerBookingsPage from './pages/CustomerBookingsPage'; // ← THIS WAS MISSING
 import ReviewPage from './pages/ReviewPage';
+import FakeChatDemo from './pages/FakeChatDemo';
 
 const ProtectedRoute = ({ 
   children, 
@@ -59,7 +60,7 @@ function App() {
             <Route path="/booking/confirm" element={<ProtectedRoute><BookingConfirm /></ProtectedRoute>} />
 
             {/* Chat */}
-            <Route path="/chat" element={<ChatPage />} />
+            <Route path="/chat" element={<FakeChatDemo />} />
             
             <Route path="/chat/conversation/:conversationId" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
  

@@ -39,7 +39,7 @@ export default function Navbar() {
               SF
             </div>
             <span className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-              ServiceFinder Nep
+              ServiceFinder Application
             </span>
           </div>
           <div className="text-yellow-400 font-bold animate-pulse">Loading...</div>
@@ -68,7 +68,8 @@ export default function Navbar() {
               SF
             </div>
             <span className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent group-hover:from-yellow-400 group-hover:to-pink-400 transition-all">
-              ServiceFinder Nepal
+              ServiceFinder Application
+
             </span>
           </Link>
         </div>
